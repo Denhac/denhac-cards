@@ -1,7 +1,6 @@
 import abc
 import sys
 import uuid
-from io import TextIOBase
 
 from card_auto_add.cas import DSXCommand, DSXName, DSXCard
 from card_auto_add.cas import CardAccessSystem

@@ -241,51 +241,11 @@ class CardAccessSystem(object):
 
         return card_holders
 
-    def get_command(self, first_name, last_name, company, card_num):
-        card_num = str(card_num)
-        name = DSXName(first_name, last_name, company)
-        _id = self._get_id(first_name, last_name, company)
-        command = DSXCommand(3, 1, _id)
-        command.set_name(name)
-        command.add_udf(DSX_UDF(self._udf_num, _id))
-        card = DSXCard(card_num)
-        card.disable()
-        card.add_acl("MBD Access")
-        command.add_card(card)
-
-        return command
-
-    # Ensures that the ID is in the database and returns it, or just creates one
-    def _get_id(self, first_name, last_name, company):
-        rows = self._find_by_name_and_company(first_name, last_name, company)
-        if len(rows) == 0:
-            return uuid.uuid4()
-        else:  # TODO Handle more than one row
-            name_id = rows[0].ID
-            _id = self._get_udf_id_from_db(name_id)
-            if _id is None:
-                _id = str(uuid.uuid4())
-                self._insert_udf_id(_id, name_id)
-            return _id
-
     def _get_udf_num(self):
         sql = "SELECT UdfNum FROM UDFName WHERE Name = ?"
         # TODO Check for no rows being returned
         # TODO Also check for the correct location group
         return list(self._cursor.execute(sql, "ID"))[0].UdfNum
-
-    def _find_by_name_and_company(self, first_name, last_name, company):
-        if isinstance(company, str):
-            company = self._find_company_id(company)
-        sql = "SELECT ID, FName, LName,  FROM NAMES WHERE FName = ? AND LName = ? AND Company = ?"
-        return list(self._cursor.execute(sql, first_name, last_name, company))
-
-    def _get_udf_id_from_db(self, name_id):
-        sql = "SELECT UdfText FROM UDF Where NameId = ? AND UdfNum = ?"
-        rows = list(self._cursor.execute(sql, name_id, self._udf_num))
-        if len(rows) == 1:
-            return rows[0].UdfText
-        return None
 
     def _insert_udf_id(self, udf_id, name_id):
         if not isinstance(udf_id, str):
@@ -293,16 +253,3 @@ class CardAccessSystem(object):
         sql = "INSERT INTO UDF(LocGrp, NameID, UdfNum, UdfText) VALUES(?, ?, ?, ?)"
         self._cursor.execute(sql, self._loc_grp, name_id, self._udf_num, udf_id)
         self._connection.commit()
-
-    def _find_by_card_number(self, card_num):
-        sql = """
-            SELECT ID, NameID, Code, StartDate, StopDate FROM CARDS
-            WHERE Code = ?
-            """
-        return list(self._cursor.execute(sql, card_num))
-
-    def _find_company_id(self, company):
-        sql = "SELECT Company FROM COMPANY WHERE Name = ?"
-        # TODO Check for no rows being returned
-        # TODO Also check for the correct location group
-        return list(self._cursor.execute(sql, company))[0].Company
