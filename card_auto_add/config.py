@@ -24,3 +24,7 @@ class Config(object):
     @property
     def windsx_path(self):
         return self._config_default['windsx_path']
+
+    @property
+    def no_interaction_delay(self):
+        return int(self._config_default['no_interaction_delay'])

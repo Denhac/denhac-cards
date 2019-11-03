@@ -15,4 +15,6 @@ ingester.start()
 api_watcher = DSXApiWatcher(config)
 api_watcher.start()
 
-time.sleep(60)
+print("Ready to go!")
+
+time.sleep(300)

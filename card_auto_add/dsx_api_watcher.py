@@ -1,15 +1,28 @@
 import os
 import subprocess
 import time
+
 from glob import glob
 from threading import Thread
+from ctypes import Structure, windll, c_uint, sizeof, byref
 from pywinauto.application import Application, ProcessNotFoundError
+
+from card_auto_add.config import Config
+
+
+class LASTINPUTINFO(Structure):
+    _fields_ = [
+        ('cbSize', c_uint),
+        ('dwTime', c_uint),
+    ]
 
 
 class DSXApiWatcher(object):
-    def __init__(self, config):
+    def __init__(self, config: Config):
         self.dsx_path = config.windsx_path
+        self._no_interaction_delay = config.no_interaction_delay
         self.db_path = os.path.join(self.dsx_path, "DB.exe")
+        self._need_to_run_windsx = True
 
     def start(self):
         thread = Thread(target=self._run, daemon=True)
@@ -17,7 +30,7 @@ class DSXApiWatcher(object):
 
     def _run(self):
         while True:
-            time.sleep(1)
+            time.sleep(10)
 
             api_files = glob(self.dsx_path + os.path.sep + "^IMP[0-9][0-9].txt")
 
@@ -25,7 +38,19 @@ class DSXApiWatcher(object):
                 for api in api_files:
                     print("WinDSX Api Found:", api)
 
+                self._need_to_run_windsx = True
+
+            interaction_time = self._current_no_interaction_time
+            if interaction_time > self._no_interaction_delay and self._need_to_run_windsx:
                 self._login_and_close_windsx()
+
+    @property
+    def _current_no_interaction_time(self):
+        last_input_info = LASTINPUTINFO()
+        last_input_info.cbSize = sizeof(last_input_info)
+        windll.user32.GetLastInputInfo(byref(last_input_info))
+        millis = windll.kernel32.GetTickCount() - last_input_info.dwTime
+        return millis / 1000.0
 
     def _login_and_close_windsx(self):
         app = self._get_windsx_app()
@@ -37,6 +62,8 @@ class DSXApiWatcher(object):
         time.sleep(10)
         # TODO Handle Database window not being open/visible
         app.Database.close(5)
+
+        self._need_to_run_windsx = False
 
     def _open_windsx(self):
         subprocess.Popen([self.db_path])
