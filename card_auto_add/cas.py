@@ -5,6 +5,8 @@ from typing import List
 
 import pyodbc
 
+from card_auto_add.config import Config
+
 
 class DSXName(object):
     def __init__(self, first_name, last_name, company):
@@ -125,11 +127,11 @@ class CardHolder(object):
 
 
 class CardAccessSystem(object):
-    def __init__(self, db_path):
-        self._db_path = db_path
+    def __init__(self, config: Config):
+        self._db_path = config.db_path
         connection_string = (
                 r'DRIVER={Microsoft Access Driver (*.mdb)};'
-                r'DBQ=' + str(db_path) + ";"
+                r'DBQ=' + str(self._db_path) + ";"
         )
         self._connection = pyodbc.connect(connection_string)
         self._cursor = self._connection.cursor()

@@ -6,12 +6,13 @@ from threading import Thread
 
 from card_auto_add.cas import CardAccessSystem
 from card_auto_add.commands import EnableCardCommand, DisableCardCommand
+from card_auto_add.config import Config
 
 
 class Ingester(object):
-    def __init__(self, ingest_dir, cas: CardAccessSystem):
+    def __init__(self, config: Config, cas: CardAccessSystem):
         self.cas = cas
-        self.ingest_dir = ingest_dir
+        self.ingest_dir = config.ingest_dir
 
     def start(self):
         thread = Thread(target=self._run, daemon=True)
@@ -25,6 +26,7 @@ class Ingester(object):
 
             if len(api_files) > 0:
                 for api_file in api_files:
+                    print("Ingest Found:", api_file)
                     with open(api_file, 'r') as fh:
                         json_data = json.load(fh)
 
