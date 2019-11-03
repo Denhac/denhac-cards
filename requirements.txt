@@ -1,0 +1,6 @@
+appdirs
+configparser
+pyodbc
+pywinauto
+requests
+uuid
