@@ -2,6 +2,7 @@ import json
 import os
 import time
 from glob import glob
+from queue import Queue
 from threading import Thread
 
 from card_auto_add.cas import CardAccessSystem
@@ -10,9 +11,10 @@ from card_auto_add.config import Config
 
 
 class Ingester(object):
-    def __init__(self, config: Config, cas: CardAccessSystem):
+    def __init__(self, config: Config, cas: CardAccessSystem, command_queue: Queue):
         self.cas = cas
         self.ingest_dir = config.ingest_dir
+        self.command_queue = command_queue
 
     def start(self):
         thread = Thread(target=self._run, daemon=True)
@@ -32,8 +34,7 @@ class Ingester(object):
 
                     # TODO Write to processor queue
                     command = self._get_dsx_command(json_data)
-                    with open("C:/WinDSX/^IMP01.txt", "w") as fh:
-                        command.get_dsx_command().write(fh)
+                    self.command_queue.put(command)
 
                     os.unlink(api_file)
 

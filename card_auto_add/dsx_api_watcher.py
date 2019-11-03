@@ -32,13 +32,14 @@ class DSXApiWatcher(object):
         while True:
             time.sleep(10)
 
-            api_files = glob(self.dsx_path + os.path.sep + "^IMP[0-9][0-9].txt")
+            if not self._need_to_run_windsx:
+                api_files = glob(self.dsx_path + os.path.sep + "^IMP[0-9][0-9].txt")
 
-            if len(api_files) > 0:
-                for api in api_files:
-                    print("WinDSX Api Found:", api)
+                if len(api_files) > 0:
+                    for api in api_files:
+                        print("WinDSX Api Found:", api)
 
-                self._need_to_run_windsx = True
+                    self._need_to_run_windsx = True
 
             interaction_time = self._current_no_interaction_time
             if interaction_time > self._no_interaction_delay and self._need_to_run_windsx:
