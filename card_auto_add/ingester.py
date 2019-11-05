@@ -80,6 +80,7 @@ class Ingester(object):
         method = json_data["method"]
         if method == "enable":
             return EnableCardCommand(
+                json_data["id"],
                 json_data["first_name"],
                 json_data["last_name"],
                 json_data["company"],
@@ -88,6 +89,7 @@ class Ingester(object):
             )
         elif method == "disable":
             return DisableCardCommand(
+                json_data["id"],
                 json_data["card"],
                 json_data["company"],
                 cas=self.cas

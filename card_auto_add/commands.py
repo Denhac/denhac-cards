@@ -13,25 +13,36 @@ class Command(object):
     def get_dsx_command(self) -> DSXCommand:
         pass
 
+    @abc.abstractmethod
+    @property
+    def id(self):
+        pass
+
 
 class Status(object):
     SUCCESS = "success"
-    ERROR_MULTIPLE_CARD_HOLDERS = "error_multiple_card_holders"
+    ERROR_MULTIPLE_CARD_HOLDERS = "error_multiple_card_holders"  # Multiple card holders had the same card for the same company
+    DEACTIVATE_CARD_NOT_FOUND = "deactivate_card_not_found"  # Card wasn't found for a deactivation request
 
 
-# TODO Add Request ID so we can link it back on status reporting
 class EnableCardCommand(Command):
     def __init__(self,
+                 command_id,
                  first_name,
                  last_name,
                  company,
                  card_num,
                  cas: CardAccessSystem):
+        self.command_id = command_id
         self.first_name = first_name
         self.last_name = last_name
         self.company = company
         self.card_num = card_num
         self.cas = cas
+
+    @property
+    def id(self):
+        return self.command_id
 
     def get_dsx_command(self) -> DSXCommand:
         dsx_command = self.cas.new_command()
@@ -62,12 +73,18 @@ class EnableCardCommand(Command):
 
 class DisableCardCommand(Command):
     def __init__(self,
+                 command_id,
                  card_num,
                  company,
                  cas: CardAccessSystem):
+        self.command_id = command_id
         self.card_num = card_num
         self.company = company
         self.cas = cas
+
+    @property
+    def id(self):
+        return self.command_id
 
     def get_dsx_command(self) -> DSXCommand:
         dsx_command = self.cas.new_command()

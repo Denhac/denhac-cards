@@ -29,6 +29,8 @@ class DSXApiWatcher(object):
         thread.start()
 
     def _run(self):
+        # TODO Prevent thrashing
+        # TODO Alert if it's been a very long time and we have cards to issue
         while True:
             time.sleep(10)
 
@@ -54,6 +56,7 @@ class DSXApiWatcher(object):
         return millis / 1000.0
 
     def _login_and_close_windsx(self):
+        # TODO Handle being on the lock screen
         app = self._get_windsx_app()
 
         # TODO Handle Login window not being open/visible
