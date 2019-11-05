@@ -21,4 +21,4 @@ api_watcher.start()
 
 print("Ready to go!")
 
-time.sleep(120)
+time.sleep(180)

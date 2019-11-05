@@ -14,6 +14,12 @@ class Command(object):
         pass
 
 
+class Status(object):
+    SUCCESS = "success"
+    ERROR_MULTIPLE_CARD_HOLDERS = "error_multiple_card_holders"
+
+
+# TODO Add Request ID so we can link it back on status reporting
 class EnableCardCommand(Command):
     def __init__(self,
                  first_name,

@@ -28,3 +28,11 @@ class Config(object):
     @property
     def no_interaction_delay(self):
         return int(self._config_default['no_interaction_delay'])
+
+    @property
+    def ingester_api_key(self):
+        return self._config_default['ingester_api_key']
+
+    @property
+    def ingester_api_url(self):
+        return self._config_default['ingester_api_url']
