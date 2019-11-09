@@ -2,27 +2,33 @@ import abc
 import sys
 import uuid
 
-from card_auto_add.cas import DSXCommand, DSXName, DSXCard
+from card_auto_add.cas import DSXCommand, DSXName, DSXCard, CardHolder
 from card_auto_add.cas import CardAccessSystem
 
 
 class Command(object):
     __metaclass__ = abc.ABCMeta
 
+    STATUS_NOT_DONE = "not_done"
+    STATUS_SUCCESS = "success"
+    # Multiple card holders have the same name/company
+    STATUS_ERROR_MULTIPLE_CARD_HOLDERS = "error_multiple_card_holders"
+    # Card wasn't found for a deactivation request
+    STATUS_DEACTIVATE_CARD_NOT_FOUND = "deactivate_card_not_found"
+
     @abc.abstractmethod
     def get_dsx_command(self) -> DSXCommand:
         pass
 
-    @abc.abstractmethod
     @property
-    def id(self):
+    @abc.abstractmethod
+    def status(self) -> str:
         pass
 
-
-class Status(object):
-    SUCCESS = "success"
-    ERROR_MULTIPLE_CARD_HOLDERS = "error_multiple_card_holders"  # Multiple card holders had the same card for the same company
-    DEACTIVATE_CARD_NOT_FOUND = "deactivate_card_not_found"  # Card wasn't found for a deactivation request
+    @property
+    @abc.abstractmethod
+    def id(self):
+        pass
 
 
 class EnableCardCommand(Command):
@@ -70,6 +76,26 @@ class EnableCardCommand(Command):
 
         return dsx_command
 
+    @property
+    def status(self):
+        card_holders = self.cas.get_card_holders(self.first_name, self.last_name, self.company)
+        name_ids = list(dict.fromkeys([card_holder.name_id for card_holder in card_holders]))
+
+        # Different name IDs mean we have different entries for the same name/company
+        if len(name_ids) > 1:
+            return self.STATUS_ERROR_MULTIPLE_CARD_HOLDERS
+
+        print(f"Status check card holders: {len(card_holders)}")
+        card_holder: CardHolder
+        for card_holder in card_holders:
+            print(f"Testing {card_holder.last_name}, {card_holder.first_name} with card {card_holder.card}")
+            if (card_holder.card == self.card_num or
+                card_holder.card == self.card_num.lstrip("0")) \
+                    and card_holder.card_active:
+                return self.STATUS_SUCCESS
+
+        return self.STATUS_NOT_DONE
+
 
 class DisableCardCommand(Command):
     def __init__(self,
@@ -103,3 +129,22 @@ class DisableCardCommand(Command):
         dsx_command.add_card(dsx_card)
 
         return dsx_command
+
+    @property
+    def status(self):
+        card_holders = self.cas.get_card_holders_by_card_num(self.company, self.card_num)
+        name_ids = list(dict.fromkeys([card_holder.name_id for card_holder in card_holders]))
+
+        # Different name IDs mean we have different entries for the same name/company
+        if len(name_ids) > 1:
+            return self.STATUS_ERROR_MULTIPLE_CARD_HOLDERS
+
+        card_holder: CardHolder
+        for card_holder in card_holders:
+            if card_holder.card == self.card_num or card_holder.card == self.card_num.lstrip("0"):
+                if not card_holder.card_active:
+                    return self.STATUS_SUCCESS
+                else:
+                    return self.STATUS_NOT_DONE
+
+        return self.STATUS_DEACTIVATE_CARD_NOT_FOUND

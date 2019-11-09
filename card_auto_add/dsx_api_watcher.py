@@ -22,7 +22,7 @@ class DSXApiWatcher(object):
         self.dsx_path = config.windsx_path
         self._no_interaction_delay = config.no_interaction_delay
         self.db_path = os.path.join(self.dsx_path, "DB.exe")
-        self._need_to_run_windsx = True
+        self._need_to_run_windsx = False
 
     def start(self):
         thread = Thread(target=self._run, daemon=True)

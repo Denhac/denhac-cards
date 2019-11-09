@@ -117,13 +117,15 @@ class CardHolder(object):
                  last_name,
                  company,
                  udf_id,
-                 cards):
+                 card,
+                 card_active):
         self.name_id = name_id
         self.first_name = first_name
         self.last_name = last_name
         self.company = company
         self.udf_id = udf_id
-        self.cards = cards
+        self.card = card
+        self.card_active = card_active
 
 
 class CardAccessSystem(object):
@@ -138,9 +140,6 @@ class CardAccessSystem(object):
 
         self._udf_num = self._get_udf_num()
         self._loc_grp = 3  # TODO Look this up based on the name
-
-    # TODO Implement a get command type thing with just a card_num that does a lookup
-    # or throws/returns None if that card doesn't have an associated name.
 
     def new_command(self) -> DSXCommand:
         return DSXCommand(self._loc_grp, self._udf_num)
@@ -174,26 +173,26 @@ class CardAccessSystem(object):
         for row in names_rows:
             card_sql = \
                 """
-                    SELECT CARDS.Code
+                    SELECT CARDS.Code, CARDS.Status
                     FROM CARDS
                     WHERE CARDS.NameId = ?
                 """
             cards_rows = list(self._cursor.execute(card_sql, row.NameId))
-            cards = [str(card.Code) for card in cards_rows]
 
             udf_id = row.UdfId
             if udf_id is None:
                 udf_id = uuid.uuid4()
                 self._insert_udf_id(udf_id, row.NameId)
 
-            card_holders.append(CardHolder(
+            card_holders.extend([CardHolder(
                 name_id=row.NameId,
                 first_name=row.FirstName,
                 last_name=row.LastName,
                 company=row.CompanyName,
                 udf_id=udf_id,
-                cards=cards
-            ))
+                card=('%f' % card.Code).rstrip('0').rstrip('.'),
+                card_active=card.Status
+            ) for card in cards_rows])
 
         return card_holders
 
@@ -206,7 +205,8 @@ class CardAccessSystem(object):
                     N.LName AS LastName,
                     CO.Name AS CompanyName,
                     U.UdfText AS UdfId,
-                    CA.Code AS CardCode
+                    CA.Code AS CardCode,
+                    CA.Status as CardStatus
                 FROM (
                          (
                              `NAMES` N
@@ -224,13 +224,17 @@ class CardAccessSystem(object):
 
         rows = list(self._cursor.execute(sql, company_name, card_num.lstrip("0")))
 
+        name_to_udf = {}
         card_holders = []
         for row in rows:
             udf_id = row.UdfId
             if udf_id is None:
-                # TODO Can a person have more than one card? If so, this will break if they have no udf id
-                udf_id = uuid.uuid4()
-                self._insert_udf_id(udf_id, row.NameId)
+                if row.NameId in name_to_udf:
+                    udf_id = name_to_udf[row.NameId]
+                else:
+                    udf_id = uuid.uuid4()
+                    self._insert_udf_id(udf_id, row.NameId)
+                    name_to_udf[row.NameId] = udf_id
 
             card_holders.append(CardHolder(
                 name_id=row.NameId,
@@ -238,7 +242,8 @@ class CardAccessSystem(object):
                 last_name=row.LastName,
                 company=row.CompanyName,
                 udf_id=udf_id,
-                cards=[row.CardCode]
+                card=('%f' % row.CardCode).rstrip('0').rstrip('.'),
+                card_active=row.CardStatus
             ))
 
         return card_holders
