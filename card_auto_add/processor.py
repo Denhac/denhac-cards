@@ -62,5 +62,5 @@ class Processor(object):
         for first in range(10):
             for second in range(10):
                 path = os.path.join(self._dsx_path, f"^IMP{first}{second}.txt")
-                if not os.path.exists(path):
+                if not os.path.exists(path) and path not in self._command_to_file.values():
                     return path
