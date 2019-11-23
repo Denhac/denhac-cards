@@ -490,6 +490,7 @@ class WebhookServerApi(object):
                 print(response.status_code)
                 with open("read_error.html", "w", encoding="utf-8") as fh:
                     fh.write(str(response.content))
+                raise Exception(f"Command json returned {response.status_code}")
         except Exception as e:
             print(e)
             capture_exception(e)
@@ -511,6 +512,7 @@ class WebhookServerApi(object):
                 print(response.status_code)
                 with open("status_error.html", "w", encoding="utf-8") as fh:
                     fh.write(str(response.content))
+                raise Exception(f"Submit status returned {response.status_code}")
         except Exception as e:
             print(e)
             capture_exception(e)
@@ -612,7 +614,7 @@ class Ingester(object):
                         os.unlink(api_file)
 
                 updates = self.server_api.get_command_json()
-                for update in updates:
+                for update in updates or []:
                     update_id = update["id"]
 
                     if update_id not in self.requests_from_api_in_queue:
@@ -744,13 +746,6 @@ class SMWinservice(win32serviceutil.ServiceFramework):
     _svc_display_name_ = 'Python Service'
     _svc_description_ = 'Python Service Description'
 
-    @classmethod
-    def parse_command_line(cls):
-        """
-        ClassMethod to parse the command line
-        """
-        win32serviceutil.HandleCommandLine(cls)
-
     def __init__(self, args):
         """
         Constructor of the winservice
@@ -763,19 +758,24 @@ class SMWinservice(win32serviceutil.ServiceFramework):
         """
         Called when the service is asked to stop
         """
-        self.stop()
         self.ReportServiceStatus(win32service.SERVICE_STOP_PENDING)
+        self.stop()
         win32event.SetEvent(self.hWaitStop)
+        self.ReportServiceStatus(win32service.SERVICE_STOPPED)
 
     def SvcDoRun(self):
         """
         Called when the service is asked to start
         """
         self.start()
-        servicemanager.LogMsg(servicemanager.EVENTLOG_INFORMATION_TYPE,
-                              servicemanager.PYS_SERVICE_STARTED,
-                              (self._svc_name_, ''))
-        self.main()
+        self.ReportServiceStatus(win32service.SERVICE_START_PENDING)
+        try:
+            self.ReportServiceStatus(win32service.SERVICE_RUNNING)
+            self.main()
+            win32event.WaitForSingleObject(self.hWaitStop, win32event.INFINITE)
+        except Exception as e:
+            capture_exception(e)
+            self.SvcStop()
 
     def start(self):
         """
@@ -830,10 +830,15 @@ class CardAutoAddService(SMWinservice):
 
     def main(self):
         while self.is_running:
-            time.sleep(60)
+            rc = win32event.WaitForSingleObject(self.hWaitStop, 24 * 60 * 60)
+            if rc == win32event.WAIT_OBJECT_0:
+                break
 
 
-# entry point of the module: copy and paste into the new module
-# ensuring you are calling the "parse_command_line" of the new created class
 if __name__ == '__main__':
-    CardAutoAddService.parse_command_line()
+    if len(sys.argv) == 1:
+        servicemanager.Initialize()
+        servicemanager.PrepareToHostSingle(CardAutoAddService)
+        servicemanager.StartServiceCtrlDispatcher()
+    else:
+        win32serviceutil.HandleCommandLine(CardAutoAddService)

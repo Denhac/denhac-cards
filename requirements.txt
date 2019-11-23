@@ -1,5 +1,6 @@
 appdirs
 configparser
+pyinstaller
 pyodbc
 pywinauto
 pywin32
