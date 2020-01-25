@@ -28,6 +28,18 @@ import servicemanager
 import win32event
 import win32service
 from sentry_sdk import capture_exception
+import logging
+
+logger = logging.getLogger("card_access")
+logger.setLevel(logging.INFO)
+
+console_handler = logging.StreamHandler()
+console_handler.setLevel(logging.INFO)
+logger.addHandler(console_handler)
+
+file_handler = logging.FileHandler("C:/Users/700 Kalamath/.cards/card_access.log")
+file_handler.setLevel(logging.INFO)
+logger.addHandler(file_handler)
 
 
 class Config(object):
@@ -376,7 +388,7 @@ class EnableCardCommand(Command):
         )
 
         if len(card_holders) > 1:
-            print("ERROR: Card holders > 1")
+            logger.info("ERROR: Card holders > 1")
             sys.exit(1)  # TODO Do NOT exit
 
         dsx_command.set_name(DSXName(
@@ -401,10 +413,10 @@ class EnableCardCommand(Command):
         if len(name_ids) > 1:
             return self.STATUS_ERROR_MULTIPLE_CARD_HOLDERS
 
-        print(f"Status check card holders: {len(card_holders)}")
+        logger.info(f"Status check card holders: {len(card_holders)}")
         card_holder: CardHolder
         for card_holder in card_holders:
-            print(f"Testing {card_holder.last_name}, {card_holder.first_name} with card {card_holder.card}")
+            logger.info(f"Testing {card_holder.last_name}, {card_holder.first_name} with card {card_holder.card}")
             if (card_holder.card == self.card_num or
                 card_holder.card == self.card_num.lstrip("0")) \
                     and card_holder.card_active:
@@ -434,7 +446,7 @@ class DisableCardCommand(Command):
         card_holders = self.cas.get_card_holders_by_card_num(self.company, self.card_num)
 
         if len(card_holders) > 1:
-            print("ERROR: Card holders > 1")
+            logger.info("ERROR: Card holders > 1")
             sys.exit(1)  # TODO Do NOT exit
 
         udf_id = card_holders[0].udf_id if len(card_holders) == 1 else uuid.uuid4()
@@ -472,6 +484,7 @@ class WebhookServerApi(object):
 
         self._session = requests.Session()
         self._session.headers["Authorization"] = f"Bearer {config.ingester_api_key}"
+        self._session.headers["Accept"] = "application/json"
 
     def get_command_json(self):
         try:
@@ -486,20 +499,20 @@ class WebhookServerApi(object):
                 return json_response["data"]
 
             else:
-                print("read response was not ok!")
-                print(response.status_code)
+                logger.info("read response was not ok!")
+                logger.info(response.status_code)
                 with open("read_error.html", "w", encoding="utf-8") as fh:
                     fh.write(str(response.content))
                 raise Exception(f"Command json returned {response.status_code}")
         except Exception as e:
-            print(e)
+            logger.info(e)
             capture_exception(e)
             pass  # Yeah, we should probably do something about this
 
     def submit_status(self, command_id, status):
         try:
             url = f"{self._api_url}/{command_id}/status"
-            print(url)
+            logger.info(url)
             response = self._session.post(url, json={
                 "status": status
             })
@@ -508,13 +521,13 @@ class WebhookServerApi(object):
                 return
 
             else:
-                print("status response was not ok!")
-                print(response.status_code)
+                logger.info("status response was not ok!")
+                logger.info(response.status_code)
                 with open("status_error.html", "w", encoding="utf-8") as fh:
                     fh.write(str(response.content))
                 raise Exception(f"Submit status returned {response.status_code}")
         except Exception as e:
-            print(e)
+            logger.info(e)
             capture_exception(e)
             pass  # Yeah, we should probably do something about this
 
@@ -542,14 +555,12 @@ class Processor(object):
             try:
                 command: Command
                 for command, file in list(self._command_to_file.items()):
-                    print(f"Checking {command.id} file: {file}")
+                    # logger.info(f"Checking {command.id} file: {file}")
                     if not os.path.exists(file):
                         del self._command_to_file[command]
-                        print("File does not exist!")
+                        logger.info(f"File {file} does not exist!")
                         self._server_api.submit_status(command.id, command.status)
-                        print(f"Status set for {command.id}: {command.status}")
-                    else:
-                        print("File exists!")
+                        logger.info(f"Status set for {command.id}: {command.status}")
 
                 try:
                     queued_command: Command = self._command_queue.get(block=False)
@@ -563,7 +574,7 @@ class Processor(object):
 
                 if unused_file_name is not None:
                     self._command_to_file[queued_command] = unused_file_name
-                    print("Placing command in:", unused_file_name)
+                    logger.info(f"Placing command in: {unused_file_name}")
 
                     with open(unused_file_name, 'w') as fh:
                         queued_command.get_dsx_command().write(fh)
@@ -604,7 +615,7 @@ class Ingester(object):
 
                 if len(api_files) > 0:
                     for api_file in api_files:
-                        print("Ingest Found:", api_file)
+                        logger.info(f"Ingest Found: {api_file}")
                         with open(api_file, 'r') as fh:
                             json_data = json.load(fh)
 
@@ -618,7 +629,7 @@ class Ingester(object):
                     update_id = update["id"]
 
                     if update_id not in self.requests_from_api_in_queue:
-                        print(f"processing update {update_id}")
+                        logger.info(f"processing update {update_id}")
                         command = self._get_dsx_command(update)
                         self.command_queue.put(command)
                         self.requests_from_api_in_queue.add(update_id)
@@ -678,14 +689,19 @@ class DSXApiWatcher(object):
 
                     if len(api_files) > 0:
                         for api in api_files:
-                            print("WinDSX Api Found:", api)
+                            logger.info(f"WinDSX Api Found: {api}")
 
                         self._need_to_run_windsx = True
 
-                interaction_time = self._current_no_interaction_time
-                if interaction_time > self._no_interaction_delay and self._need_to_run_windsx:
-                    self._login_and_close_windsx()
+                no_interaction_time = self._current_no_interaction_time
+                if self._need_to_run_windsx:
+                    if no_interaction_time > self._no_interaction_delay:
+                        self._login_and_close_windsx()
+                    else:
+                        logger.info("We need to run DSX, but someone has interacted with the computer too recently")
             except Exception as e:
+                logger.info("Oh no, something happened!")
+                logger.info(e)
                 capture_exception(e)
 
     @property
@@ -698,7 +714,14 @@ class DSXApiWatcher(object):
 
     def _login_and_close_windsx(self):
         # TODO Handle being on the lock screen
+        logger.info("What's an app?")
         app = self._get_windsx_app()
+        logger.info(f"Woot the app returned: {app}")
+
+        for window in app.windows():
+            logger.info(window)
+
+        logger.info(f"Them windows printed: {len(app.windows())}")
 
         # TODO Handle Login window not being open/visible
         app.Login.Edit0.set_edit_text("master")
@@ -721,10 +744,13 @@ class DSXApiWatcher(object):
         while app is None:
             try:
                 attempts = attempts + 1
+                logger.info("Trying to get an app")
                 app = Application().connect(path=self.db_path)
+                logger.info("Got an app")
             except ProcessNotFoundError:
                 attempts_remaining = TOTAL_ATTEMPTS - attempts
-                print(f"Failed to connect to WinDSX, trying to open, {attempts_remaining} attempt(s) remaining...")
+                logger.info(
+                    f"Failed to connect to WinDSX, trying to open, {attempts_remaining} attempt(s) remaining...")
                 self._open_windsx()
 
                 if attempts == TOTAL_ATTEMPTS:
@@ -733,112 +759,21 @@ class DSXApiWatcher(object):
         return app
 
 
-"""
-Class taken from https://www.thepythoncorner.com/2018/08/how-to-create-a-windows-service-in-python/
-with some modifications :)
-"""
-
-
-class SMWinservice(win32serviceutil.ServiceFramework):
-    """Base class to create winservice in Python"""
-
-    _svc_name_ = 'pythonService'
-    _svc_display_name_ = 'Python Service'
-    _svc_description_ = 'Python Service Description'
-
-    def __init__(self, args):
-        """
-        Constructor of the winservice
-        """
-        win32serviceutil.ServiceFramework.__init__(self, args)
-        self.hWaitStop = win32event.CreateEvent(None, 0, 0, None)
-        socket.setdefaulttimeout(60)
-
-    def SvcStop(self):
-        """
-        Called when the service is asked to stop
-        """
-        self.ReportServiceStatus(win32service.SERVICE_STOP_PENDING)
-        self.stop()
-        win32event.SetEvent(self.hWaitStop)
-        self.ReportServiceStatus(win32service.SERVICE_STOPPED)
-
-    def SvcDoRun(self):
-        """
-        Called when the service is asked to start
-        """
-        self.start()
-        self.ReportServiceStatus(win32service.SERVICE_START_PENDING)
-        try:
-            self.ReportServiceStatus(win32service.SERVICE_RUNNING)
-            self.main()
-            win32event.WaitForSingleObject(self.hWaitStop, win32event.INFINITE)
-        except Exception as e:
-            capture_exception(e)
-            self.SvcStop()
-
-    def start(self):
-        """
-        Override to add logic before the start
-        eg. running condition
-        """
-        pass
-
-    def stop(self):
-        """
-        Override to add logic before the stop
-        eg. invalidating running condition
-        """
-        pass
-
-    def main(self):
-        """
-        Main class to be overridden to add logic
-        """
-        pass
-
-
-class CardAutoAddService(SMWinservice):
-    _svc_name_ = "CardAccessManager"
-    _svc_display_name_ = "Card Access Manager"
-    _svc_description_ = "A service to help know what cards are active"
-
-    def __init__(self, args):
-        super().__init__(args)
-        self.is_running = False
-
-    def start(self):
-        config = Config()
-        sentry_sdk.init(config.sentry_dsn)
-
-        cas = CardAccessSystem(config)
-        server_api = WebhookServerApi(config)
-
-        processor = Processor(config, server_api)
-        processor.start()
-
-        ingester = Ingester(config, cas, server_api, processor.command_queue)
-        ingester.start()
-
-        api_watcher = DSXApiWatcher(config)
-        api_watcher.start()
-
-        self.is_running = True
-
-    def stop(self):
-        self.is_running = False
-
-    def main(self):
-        while self.is_running:
-            rc = win32event.WaitForSingleObject(self.hWaitStop, 24 * 60 * 60)
-            if rc == win32event.WAIT_OBJECT_0:
-                break
-
-
 if __name__ == '__main__':
-    if len(sys.argv) == 1:
-        servicemanager.Initialize()
-        servicemanager.PrepareToHostSingle(CardAutoAddService)
-        servicemanager.StartServiceCtrlDispatcher()
-    else:
-        win32serviceutil.HandleCommandLine(CardAutoAddService)
+    config = Config()
+    sentry_sdk.init(config.sentry_dsn)
+
+    cas = CardAccessSystem(config)
+    server_api = WebhookServerApi(config)
+
+    processor = Processor(config, server_api)
+    processor.start()
+
+    ingester = Ingester(config, cas, server_api, processor.command_queue)
+    ingester.start()
+
+    api_watcher = DSXApiWatcher(config)
+    api_watcher.start()
+
+    while True:
+        time.sleep(60)
