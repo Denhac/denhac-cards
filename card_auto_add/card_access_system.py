@@ -41,7 +41,7 @@ class CardAccessSystem(object):
     def new_command(self) -> DSXCommand:
         return DSXCommand(self._loc_grp, self._udf_num)
 
-    def get_card_holders(self, first_name, last_name, company_name) -> List[CardHolder]:
+    def get_card_holders_by_name(self, first_name, last_name, company_name) -> List[CardHolder]:
         names_sql = \
             f"""
                 SELECT
@@ -120,6 +120,58 @@ class CardAccessSystem(object):
             """
 
         rows = list(self._cursor.execute(sql, company_name, card_num.lstrip("0")))
+
+        name_to_udf = {}
+        card_holders = []
+        for row in rows:
+            udf_id = row.UdfId
+            if udf_id is None:
+                if row.NameId in name_to_udf:
+                    udf_id = name_to_udf[row.NameId]
+                else:
+                    udf_id = uuid.uuid4()
+                    self._insert_udf_id(udf_id, row.NameId)
+                    name_to_udf[row.NameId] = udf_id
+
+            card_holders.append(CardHolder(
+                name_id=row.NameId,
+                first_name=row.FirstName,
+                last_name=row.LastName,
+                company=row.CompanyName,
+                udf_id=udf_id,
+                card=('%f' % row.CardCode).rstrip('0').rstrip('.'),
+                card_active=row.CardStatus
+            ))
+
+        return card_holders
+
+    def get_active_card_holders(self, company_name) -> List[CardHolder]:
+        sql = \
+            """
+                SELECT
+                    N.ID AS NameId,
+                    N.FName AS FirstName,
+                    N.LName AS LastName,
+                    CO.Name AS CompanyName,
+                    U.UdfText AS UdfId,
+                    CA.Code AS CardCode,
+                    CA.Status as CardStatus
+                FROM (
+                         (
+                             `NAMES` N
+                                 INNER JOIN COMPANY CO
+                                 ON CO.Company = N.Company
+                             )
+                            INNER JOIN CARDS CA
+                            ON CA.NameID = N.ID
+                         )
+                    LEFT JOIN UDF U
+                    ON U.NameID = N.ID
+                    WHERE CO.Name = ?
+                    AND CA.Status = true
+            """
+
+        rows = list(self._cursor.execute(sql, company_name))
 
         name_to_udf = {}
         card_holders = []

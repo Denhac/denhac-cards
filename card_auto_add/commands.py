@@ -56,7 +56,7 @@ class EnableCardCommand(Command):
     def get_dsx_command(self) -> DSXCommand:
         dsx_command = self.cas.new_command()
 
-        card_holders = self.cas.get_card_holders(
+        card_holders = self.cas.get_card_holders_by_name(
             self.first_name,
             self.last_name,
             self.company
@@ -81,7 +81,7 @@ class EnableCardCommand(Command):
 
     @property
     def status(self):
-        card_holders = self.cas.get_card_holders(self.first_name, self.last_name, self.company)
+        card_holders = self.cas.get_card_holders_by_name(self.first_name, self.last_name, self.company)
         name_ids = list(dict.fromkeys([card_holder.name_id for card_holder in card_holders]))
 
         # Different name IDs mean we have different entries for the same name/company

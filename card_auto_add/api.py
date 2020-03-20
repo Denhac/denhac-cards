@@ -15,7 +15,7 @@ class WebhookServerApi(object):
 
     def get_command_json(self):
         try:
-            response = self._session.get(self._api_url)
+            response = self._session.get(f"{self._api_url}/card_updates")
 
             if response.ok:
                 json_response = response.json()
@@ -38,7 +38,7 @@ class WebhookServerApi(object):
 
     def submit_status(self, command_id, status):
         try:
-            url = f"{self._api_url}/{command_id}/status"
+            url = f"{self._api_url}/card_updates/{command_id}/status"
             self._logger.info(url)
             response = self._session.post(url, json={
                 "status": status
@@ -52,6 +52,26 @@ class WebhookServerApi(object):
                 self._logger.info(response.status_code)
                 with open("status_error.html", "w", encoding="utf-8") as fh:
                     fh.write(str(response.content))
+                raise Exception(f"Submit status returned {response.status_code}")
+        except Exception as e:
+            self._logger.info(e)
+            capture_exception(e)
+            pass  # Yeah, we should probably do something about this
+
+    def submit_active_card_holders(self, active_card_holders):
+        try:
+            url = f"{self._api_url}/active_card_holders"
+            self._logger.info(url)
+            response = self._session.post(url, json={
+                "card_holders": active_card_holders
+            })
+
+            if response.ok:
+                return
+
+            else:
+                self._logger.info("status response was not ok!")
+                self._logger.info(response.status_code)
                 raise Exception(f"Submit status returned {response.status_code}")
         except Exception as e:
             self._logger.info(e)

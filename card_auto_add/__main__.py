@@ -6,6 +6,7 @@ import sentry_sdk
 from card_auto_add.api import WebhookServerApi
 from card_auto_add.card_access_system import CardAccessSystem
 from card_auto_add.config import Config
+from card_auto_add.loops.active_cards_watcher import ActiveCardsWatcher
 from card_auto_add.loops.dsx_api_watcher import DSXApiWatcher
 from card_auto_add.loops.ingester import Ingester
 from card_auto_add.loops.processor import Processor
@@ -35,6 +36,9 @@ ingester.start()
 
 api_watcher = DSXApiWatcher(config)
 api_watcher.start()
+
+active_cards_watcher = ActiveCardsWatcher(config, server_api, cas)
+active_cards_watcher.start()
 
 while True:
     time.sleep(60)
