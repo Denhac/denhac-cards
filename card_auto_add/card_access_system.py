@@ -1,3 +1,5 @@
+from threading import Lock
+
 import uuid
 from typing import List
 
@@ -25,6 +27,22 @@ class CardHolder(object):
         self.card_active = card_active
 
 
+class CardScan(object):
+    def __init__(self,
+                 name_id,
+                 first_name,
+                 last_name,
+                 company,
+                 card,
+                 scan_time):
+        self.name_id = name_id
+        self.first_name = first_name
+        self.last_name = last_name
+        self.company = company
+        self.card = card
+        self.scan_time = scan_time
+
+
 class CardAccessSystem(object):
     def __init__(self, config: Config):
         self._db_path = config.db_path
@@ -37,165 +55,211 @@ class CardAccessSystem(object):
 
         self._udf_num = self._get_udf_num()
         self._loc_grp = 3  # TODO Look this up based on the name
+        self._db_lock = Lock()
 
     def new_command(self) -> DSXCommand:
         return DSXCommand(self._loc_grp, self._udf_num)
 
     def get_card_holders_by_name(self, first_name, last_name, company_name) -> List[CardHolder]:
-        names_sql = \
-            f"""
-                SELECT
-                    N.ID AS NameId,
-                    N.FName AS FirstName,
-                    N.LName AS LastName,
-                    C.Name AS CompanyName,
-                    U.UdfText AS UdfId
-                FROM (
-                    `NAMES` N
-                    INNER JOIN COMPANY C
-                        ON C.Company = N.Company
-                    ) LEFT JOIN UDF U
-                    ON U.NameID = N.ID
-                WHERE N.FName = ?
-                AND   N.LName = ?
-                AND   C.Name = ?
-            """
-
-        names_rows = list(self._cursor.execute(names_sql,
-                                               first_name,
-                                               last_name,
-                                               company_name))
-        card_holders = []
-
-        for row in names_rows:
-            card_sql = \
+        with self._db_lock:
+            names_sql = \
+                f"""
+                    SELECT
+                        N.ID AS NameId,
+                        N.FName AS FirstName,
+                        N.LName AS LastName,
+                        C.Name AS CompanyName,
+                        U.UdfText AS UdfId
+                    FROM (
+                        `NAMES` N
+                        INNER JOIN COMPANY C
+                            ON C.Company = N.Company
+                        ) LEFT JOIN UDF U
+                        ON U.NameID = N.ID
+                    WHERE N.FName = ?
+                    AND   N.LName = ?
+                    AND   C.Name = ?
                 """
-                    SELECT CARDS.Code, CARDS.Status
-                    FROM CARDS
-                    WHERE CARDS.NameId = ?
-                """
-            cards_rows = list(self._cursor.execute(card_sql, row.NameId))
 
-            udf_id = row.UdfId
-            if udf_id is None:
-                udf_id = uuid.uuid4()
-                self._insert_udf_id(udf_id, row.NameId)
+            names_rows = list(self._cursor.execute(names_sql,
+                                                   first_name,
+                                                   last_name,
+                                                   company_name))
+            card_holders = []
 
-            card_holders.extend([CardHolder(
-                name_id=row.NameId,
-                first_name=row.FirstName,
-                last_name=row.LastName,
-                company=row.CompanyName,
-                udf_id=udf_id,
-                card=('%f' % card.Code).rstrip('0').rstrip('.'),
-                card_active=card.Status
-            ) for card in cards_rows])
+            for row in names_rows:
+                card_sql = \
+                    """
+                        SELECT CARDS.Code, CARDS.Status
+                        FROM CARDS
+                        WHERE CARDS.NameId = ?
+                    """
+                cards_rows = list(self._cursor.execute(card_sql, row.NameId))
 
-        return card_holders
+                udf_id = row.UdfId
+                if udf_id is None:
+                    udf_id = uuid.uuid4()
+                    self._insert_udf_id(udf_id, row.NameId)
+
+                card_holders.extend([CardHolder(
+                    name_id=row.NameId,
+                    first_name=row.FirstName,
+                    last_name=row.LastName,
+                    company=row.CompanyName,
+                    udf_id=udf_id,
+                    card=('%f' % card.Code).rstrip('0').rstrip('.'),
+                    card_active=card.Status
+                ) for card in cards_rows])
+
+            return card_holders
 
     def get_card_holders_by_card_num(self, company_name, card_num) -> List[CardHolder]:
-        sql = \
-            """
-                SELECT
-                    N.ID AS NameId,
-                    N.FName AS FirstName,
-                    N.LName AS LastName,
-                    CO.Name AS CompanyName,
-                    U.UdfText AS UdfId,
-                    CA.Code AS CardCode,
-                    CA.Status as CardStatus
-                FROM (
-                         (
-                             `NAMES` N
-                                 INNER JOIN COMPANY CO
-                                 ON CO.Company = N.Company
+        with self._db_lock:
+            sql = \
+                """
+                    SELECT
+                        N.ID AS NameId,
+                        N.FName AS FirstName,
+                        N.LName AS LastName,
+                        CO.Name AS CompanyName,
+                        U.UdfText AS UdfId,
+                        CA.Code AS CardCode,
+                        CA.Status as CardStatus
+                    FROM (
+                             (
+                                 `NAMES` N
+                                     INNER JOIN COMPANY CO
+                                     ON CO.Company = N.Company
+                                 )
+                                INNER JOIN CARDS CA
+                                ON CA.NameID = N.ID
                              )
-                            INNER JOIN CARDS CA
-                            ON CA.NameID = N.ID
-                         )
-                    LEFT JOIN UDF U
-                    ON U.NameID = N.ID
-                    WHERE CO.Name = ?
-                    AND CA.Code = ?
-            """
+                        LEFT JOIN UDF U
+                        ON U.NameID = N.ID
+                        WHERE CO.Name = ?
+                        AND CA.Code = ?
+                """
 
-        rows = list(self._cursor.execute(sql, company_name, card_num.lstrip("0")))
+            rows = list(self._cursor.execute(sql, company_name, card_num.lstrip("0")))
 
-        name_to_udf = {}
-        card_holders = []
-        for row in rows:
-            udf_id = row.UdfId
-            if udf_id is None:
-                if row.NameId in name_to_udf:
-                    udf_id = name_to_udf[row.NameId]
-                else:
-                    udf_id = uuid.uuid4()
-                    self._insert_udf_id(udf_id, row.NameId)
-                    name_to_udf[row.NameId] = udf_id
+            name_to_udf = {}
+            card_holders = []
+            for row in rows:
+                udf_id = row.UdfId
+                if udf_id is None:
+                    if row.NameId in name_to_udf:
+                        udf_id = name_to_udf[row.NameId]
+                    else:
+                        udf_id = uuid.uuid4()
+                        self._insert_udf_id(udf_id, row.NameId)
+                        name_to_udf[row.NameId] = udf_id
 
-            card_holders.append(CardHolder(
-                name_id=row.NameId,
-                first_name=row.FirstName,
-                last_name=row.LastName,
-                company=row.CompanyName,
-                udf_id=udf_id,
-                card=('%f' % row.CardCode).rstrip('0').rstrip('.'),
-                card_active=row.CardStatus
-            ))
+                card_holders.append(CardHolder(
+                    name_id=row.NameId,
+                    first_name=row.FirstName,
+                    last_name=row.LastName,
+                    company=row.CompanyName,
+                    udf_id=udf_id,
+                    card=('%f' % row.CardCode).rstrip('0').rstrip('.'),
+                    card_active=row.CardStatus
+                ))
 
-        return card_holders
+            return card_holders
 
     def get_active_card_holders(self, company_name) -> List[CardHolder]:
-        sql = \
-            """
-                SELECT
-                    N.ID AS NameId,
-                    N.FName AS FirstName,
-                    N.LName AS LastName,
-                    CO.Name AS CompanyName,
-                    U.UdfText AS UdfId,
-                    CA.Code AS CardCode,
-                    CA.Status as CardStatus
-                FROM (
-                         (
-                             `NAMES` N
-                                 INNER JOIN COMPANY CO
-                                 ON CO.Company = N.Company
+        with self._db_lock:
+            sql = \
+                """
+                    SELECT
+                        N.ID AS NameId,
+                        N.FName AS FirstName,
+                        N.LName AS LastName,
+                        CO.Name AS CompanyName,
+                        U.UdfText AS UdfId,
+                        CA.Code AS CardCode,
+                        CA.Status as CardStatus
+                    FROM (
+                             (
+                                 `NAMES` N
+                                     INNER JOIN COMPANY CO
+                                     ON CO.Company = N.Company
+                                 )
+                                INNER JOIN CARDS CA
+                                ON CA.NameID = N.ID
                              )
-                            INNER JOIN CARDS CA
-                            ON CA.NameID = N.ID
-                         )
-                    LEFT JOIN UDF U
-                    ON U.NameID = N.ID
-                    WHERE CO.Name = ?
-                    AND CA.Status = true
-            """
+                        LEFT JOIN UDF U
+                        ON U.NameID = N.ID
+                        WHERE CO.Name = ?
+                        AND CA.Status = true
+                """
 
-        rows = list(self._cursor.execute(sql, company_name))
+            rows = list(self._cursor.execute(sql, company_name))
 
-        name_to_udf = {}
-        card_holders = []
-        for row in rows:
-            udf_id = row.UdfId
-            if udf_id is None:
-                if row.NameId in name_to_udf:
-                    udf_id = name_to_udf[row.NameId]
-                else:
-                    udf_id = uuid.uuid4()
-                    self._insert_udf_id(udf_id, row.NameId)
-                    name_to_udf[row.NameId] = udf_id
+            name_to_udf = {}
+            card_holders = []
+            for row in rows:
+                udf_id = row.UdfId
+                if udf_id is None:
+                    if row.NameId in name_to_udf:
+                        udf_id = name_to_udf[row.NameId]
+                    else:
+                        udf_id = uuid.uuid4()
+                        self._insert_udf_id(udf_id, row.NameId)
+                        name_to_udf[row.NameId] = udf_id
 
-            card_holders.append(CardHolder(
-                name_id=row.NameId,
-                first_name=row.FirstName,
-                last_name=row.LastName,
-                company=row.CompanyName,
-                udf_id=udf_id,
-                card=('%f' % row.CardCode).rstrip('0').rstrip('.'),
-                card_active=row.CardStatus
-            ))
+                card_holders.append(CardHolder(
+                    name_id=row.NameId,
+                    first_name=row.FirstName,
+                    last_name=row.LastName,
+                    company=row.CompanyName,
+                    udf_id=udf_id,
+                    card=('%f' % row.CardCode).rstrip('0').rstrip('.'),
+                    card_active=row.CardStatus
+                ))
 
-        return card_holders
+            return card_holders
+
+    def get_card_scans(self, company_name) -> List[CardScan]:
+        with self._db_lock:
+            sql = \
+                """
+                    SELECT
+                        N.ID AS NameId,
+                        N.FName AS FirstName,
+                        N.LName AS LastName,
+                        CO.Name AS CompanyName,
+                        CA.Code AS CardCode,
+                        LC.LastDate as ScanTime
+                    FROM (
+                             (
+                                 `NAMES` N
+                                     INNER JOIN COMPANY CO
+                                     ON CO.Company = N.Company
+                                 )
+                                INNER JOIN CARDS CA
+                                ON CA.NameID = N.ID
+                             )
+                        LEFT JOIN LocCards LC
+                        ON LC.CardId = CA.ID
+                        WHERE CO.Name = ?
+                        AND CA.Status = true
+                """
+
+            rows = list(self._cursor.execute(sql, company_name))
+
+            card_scans = []
+
+            for row in rows:
+                card_scans.append(CardScan(
+                    name_id=row.NameId,
+                    first_name=row.FirstName,
+                    last_name=row.LastName,
+                    company=row.CompanyName,
+                    card=('%f' % row.CardCode).rstrip('0').rstrip('.'),
+                    scan_time=row.ScanTime
+                ))
+
+            return card_scans
 
     def _get_udf_num(self):
         sql = "SELECT UdfNum FROM UDFName WHERE Name = ?"

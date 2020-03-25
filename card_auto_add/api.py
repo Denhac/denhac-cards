@@ -1,6 +1,7 @@
 import requests
 from sentry_sdk import capture_exception
 
+from card_auto_add.card_access_system import CardScan
 from card_auto_add.config import Config
 
 
@@ -68,7 +69,28 @@ class WebhookServerApi(object):
 
             if response.ok:
                 return
+            else:
+                self._logger.info("status response was not ok!")
+                self._logger.info(response.status_code)
+                raise Exception(f"Submit status returned {response.status_code}")
+        except Exception as e:
+            self._logger.info(e)
+            capture_exception(e)
+            pass  # Yeah, we should probably do something about this
 
+    def submit_card_scan_event(self, card_scan: CardScan):
+        try:
+            url = f"{self._api_url}/events/card_scanned"
+            self._logger.info(url)
+            response = self._session.post(url, json={
+                "first_name": card_scan.first_name,
+                "last_name": card_scan.last_name,
+                "card_num": card_scan.card,
+                "scan_time": card_scan.scan_time.isoformat()
+            })
+
+            if response.ok:
+                return
             else:
                 self._logger.info("status response was not ok!")
                 self._logger.info(response.status_code)

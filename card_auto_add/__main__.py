@@ -7,6 +7,7 @@ from card_auto_add.api import WebhookServerApi
 from card_auto_add.card_access_system import CardAccessSystem
 from card_auto_add.config import Config
 from card_auto_add.loops.active_cards_watcher import ActiveCardsWatcher
+from card_auto_add.loops.card_scan_watcher import CardScanWatcher
 from card_auto_add.loops.dsx_api_watcher import DSXApiWatcher
 from card_auto_add.loops.ingester import Ingester
 from card_auto_add.loops.processor import Processor
@@ -39,6 +40,9 @@ api_watcher.start()
 
 active_cards_watcher = ActiveCardsWatcher(config, server_api, cas)
 active_cards_watcher.start()
+
+card_scan_watcher = CardScanWatcher(config, server_api, cas)
+card_scan_watcher.start()
 
 while True:
     time.sleep(60)
