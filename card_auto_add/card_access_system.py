@@ -43,15 +43,27 @@ class CardScan(object):
         self.scan_time = scan_time
 
 
+class Database(object):
+    def __init__(self, db_path):
+        self._connection = pyodbc.connect((
+                r'DRIVER={Microsoft Access Driver (*.mdb)};'
+                r'DBQ=' + str(db_path) + ";"
+        ))
+        self._cursor = self.connection.cursor()
+
+    @property
+    def connection(self):
+        return self._connection
+
+    @property
+    def cursor(self):
+        return self._cursor
+
+
 class CardAccessSystem(object):
     def __init__(self, config: Config):
-        self._db_path = config.db_path
-        connection_string = (
-                r'DRIVER={Microsoft Access Driver (*.mdb)};'
-                r'DBQ=' + str(self._db_path) + ";"
-        )
-        self._connection = pyodbc.connect(connection_string)
-        self._cursor = self._connection.cursor()
+        self._db = Database(config.acs_data_db_path)
+        self._log_db = Database(config.log_db_path)
 
         self._udf_num = self._get_udf_num()
         self._loc_grp = 3  # TODO Look this up based on the name
@@ -81,10 +93,10 @@ class CardAccessSystem(object):
                     AND   C.Name = ?
                 """
 
-            names_rows = list(self._cursor.execute(names_sql,
-                                                   first_name,
-                                                   last_name,
-                                                   company_name))
+            names_rows = list(self._db.cursor.execute(names_sql,
+                                                            first_name,
+                                                            last_name,
+                                                            company_name))
             card_holders = []
 
             for row in names_rows:
@@ -94,7 +106,7 @@ class CardAccessSystem(object):
                         FROM CARDS
                         WHERE CARDS.NameId = ?
                     """
-                cards_rows = list(self._cursor.execute(card_sql, row.NameId))
+                cards_rows = list(self._db.cursor.execute(card_sql, row.NameId))
 
                 udf_id = row.UdfId
                 if udf_id is None:
@@ -140,7 +152,7 @@ class CardAccessSystem(object):
                         AND CA.Code = ?
                 """
 
-            rows = list(self._cursor.execute(sql, company_name, card_num.lstrip("0")))
+            rows = list(self._db.cursor.execute(sql, company_name, card_num.lstrip("0")))
 
             name_to_udf = {}
             card_holders = []
@@ -193,7 +205,7 @@ class CardAccessSystem(object):
                         AND CA.Status = true
                 """
 
-            rows = list(self._cursor.execute(sql, company_name))
+            rows = list(self._db.cursor.execute(sql, company_name))
 
             name_to_udf = {}
             card_holders = []
@@ -245,7 +257,7 @@ class CardAccessSystem(object):
                         AND CA.Status = true
                 """
 
-            rows = list(self._cursor.execute(sql, company_name))
+            rows = list(self._db.cursor.execute(sql, company_name))
 
             card_scans = []
 
@@ -265,11 +277,11 @@ class CardAccessSystem(object):
         sql = "SELECT UdfNum FROM UDFName WHERE Name = ?"
         # TODO Check for no rows being returned
         # TODO Also check for the correct location group
-        return list(self._cursor.execute(sql, "ID"))[0].UdfNum
+        return list(self._db.cursor.execute(sql, "ID"))[0].UdfNum
 
     def _insert_udf_id(self, udf_id, name_id):
         if not isinstance(udf_id, str):
             udf_id = str(udf_id)
         sql = "INSERT INTO UDF(LocGrp, NameID, UdfNum, UdfText) VALUES(?, ?, ?, ?)"
-        self._cursor.execute(sql, self._loc_grp, name_id, self._udf_num, udf_id)
-        self._connection.commit()
+        self._db.cursor.execute(sql, self._loc_grp, name_id, self._udf_num, udf_id)
+        self._db.connection.commit()

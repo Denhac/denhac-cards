@@ -15,8 +15,12 @@ class Config(object):
         self._config_default = parser['DEFAULT']
 
     @property
-    def db_path(self):
-        return self._config_default['db_path']
+    def acs_data_db_path(self):
+        return self._config_default['acs_data_db_path']
+
+    @property
+    def log_db_path(self):
+        return self._config_default['log_db_path']
 
     @property
     def ingest_dir(self):

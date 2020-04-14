@@ -146,3 +146,4 @@ modules.xml
 
 venv
 .idea/webServers.xml
+.DS_Store
