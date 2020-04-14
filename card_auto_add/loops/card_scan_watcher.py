@@ -1,4 +1,5 @@
 import time
+from datetime import datetime
 from threading import Thread
 from typing import List
 
@@ -17,6 +18,7 @@ class CardScanWatcher(object):
         self._server_api = server_api
         self._cas = cas
         self._known_card_scans = {}
+        self._last_scan_time = datetime.now()
 
     def start(self):
         thread = Thread(target=self._run, daemon=True)
@@ -25,27 +27,14 @@ class CardScanWatcher(object):
     def _run(self):
         while True:
             # TODO remove hardcoded value
-            card_scans: List[CardScan] = self._cas.get_card_scans("denhac")
+            card_scans: List[CardScan] = self._cas.get_scan_events_since(self._last_scan_time)
 
             for scan in card_scans:
-                if scan.name_id not in self._known_card_scans:
-                    self._known_card_scans[scan.name_id] = {}
-                    continue
+                self._last_scan_time = max(self._last_scan_time, scan.scan_time)
 
-                scans_for_name = self._known_card_scans[scan.name_id]
-                if scan.card not in scans_for_name:
-                    # We don't care about previous scans or if the card was just added to the system
-                    scans_for_name[scan.card] = scan
-                    continue
-
-                previous_scan: CardScan = scans_for_name[scan.card]
-
-                if previous_scan.scan_time != scan.scan_time:
-                    scans_for_name[scan.card] = scan
-
-                    try:
-                        self._server_api.submit_card_scan_event(scan)
-                    except Exception as e:
-                        capture_exception(e)
+                try:
+                    self._server_api.submit_card_scan_event(scan)
+                except Exception as e:
+                    capture_exception(e)
 
             time.sleep(60)  # 1 minute

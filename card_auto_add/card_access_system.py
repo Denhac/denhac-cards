@@ -1,3 +1,4 @@
+import json
 from threading import Lock
 
 import uuid
@@ -34,13 +35,15 @@ class CardScan(object):
                  last_name,
                  company,
                  card,
-                 scan_time):
+                 scan_time,
+                 access_allowed):
         self.name_id = name_id
         self.first_name = first_name
         self.last_name = last_name
         self.company = company
         self.card = card
         self.scan_time = scan_time
+        self.access_allowed = access_allowed
 
 
 class Database(object):
@@ -52,11 +55,11 @@ class Database(object):
         self._cursor = self.connection.cursor()
 
     @property
-    def connection(self):
+    def connection(self) -> pyodbc.Connection:
         return self._connection
 
     @property
-    def cursor(self):
+    def cursor(self) -> pyodbc.Cursor:
         return self._cursor
 
 
@@ -65,6 +68,7 @@ class CardAccessSystem(object):
         self._db = Database(config.acs_data_db_path)
         self._log_db = Database(config.log_db_path)
 
+        self._company = self._get_company_from_name("denhac")
         self._udf_num = self._get_udf_num()
         self._loc_grp = 3  # TODO Look this up based on the name
         self._db_lock = Lock()
@@ -172,7 +176,7 @@ class CardAccessSystem(object):
                     last_name=row.LastName,
                     company=row.CompanyName,
                     udf_id=udf_id,
-                    card=('%f' % row.CardCode).rstrip('0').rstrip('.'),
+                    card=self._strip_card_leading_zeros(row.CardCode),
                     card_active=row.CardStatus
                 ))
 
@@ -225,7 +229,7 @@ class CardAccessSystem(object):
                     last_name=row.LastName,
                     company=row.CompanyName,
                     udf_id=udf_id,
-                    card=('%f' % row.CardCode).rstrip('0').rstrip('.'),
+                    card=self._strip_card_leading_zeros(row.CardCode),
                     card_active=row.CardStatus
                 ))
 
@@ -267,11 +271,78 @@ class CardAccessSystem(object):
                     first_name=row.FirstName,
                     last_name=row.LastName,
                     company=row.CompanyName,
-                    card=('%f' % row.CardCode).rstrip('0').rstrip('.'),
-                    scan_time=row.ScanTime
+                    card=self._strip_card_leading_zeros(row.CardCode),
+                    scan_time=row.ScanTime,
+                    access_allowed=True
                 ))
 
             return card_scans
+
+    def get_scan_events_since(self, timestamp):
+        access_allowed_code = 8
+        access_denied_unknown_code = 174
+        sql = \
+        f"""
+            SELECT
+                TimeDate,
+                Event,
+                Code AS CardCode,
+                Opr AS NameId
+            FROM EvnLog
+            WHERE Event IN ({access_allowed_code}, {access_denied_unknown_code})
+            AND IO = ?
+            AND TimeDate > ?
+        """
+
+        rows = list(self._log_db.cursor.execute(sql, self._company, timestamp))
+
+        card_scans = []
+
+        for row in rows:
+            name_info = self._get_name_info_from_id(row.NameId)
+            if name_info is None:
+                continue  # We couldn't find the name for this event
+
+            access_allowed = row.Event == access_allowed_code
+            card_scans.append(CardScan(
+                name_id=row.NameId,
+                first_name=name_info.FirstName,
+                last_name=name_info.LastName,
+                company=name_info.CompanyName,
+                card=self._strip_card_leading_zeros(row.CardCode),
+                scan_time=row.TimeDate,
+                access_allowed=access_allowed
+            ))
+
+        return card_scans
+
+    def _strip_card_leading_zeros(self, card_code):
+        return ('%f' % card_code).rstrip('0').rstrip('.')
+
+    def _get_name_info_from_id(self, name_id):
+        sql = \
+            """
+                SELECT
+                    N.ID AS NameId,
+                    N.FName AS FirstName,
+                    N.LName AS LastName,
+                    CO.Name AS CompanyName
+                FROM `NAMES` N
+                INNER JOIN `COMPANY` CO
+                    ON CO.Company = N.Company
+                WHERE N.ID = ?
+            """
+
+        name_rows = list(self._db.cursor.execute(sql, name_id))
+
+        if len(name_rows) == 0:
+            return None
+
+        return name_rows[0]
+
+    def _get_company_from_name(self, company_name):
+        sql = "SELECT Company FROM COMPANY WHERE Name = ?"
+        return list(self._db.cursor.execute(sql, company_name))[0].Company
 
     def _get_udf_num(self):
         sql = "SELECT UdfNum FROM UDFName WHERE Name = ?"
