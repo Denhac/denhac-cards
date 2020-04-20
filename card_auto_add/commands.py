@@ -1,7 +1,8 @@
 import abc
 import logging
-import sys
 import uuid
+
+from sentry_sdk import capture_exception
 
 from card_auto_add.card_access_system import CardAccessSystem, CardHolder
 from card_auto_add.dsx import DSXCommand, DSXName, DSXCard
@@ -63,8 +64,11 @@ class EnableCardCommand(Command):
         )
 
         if len(card_holders) > 1:
-            self.logger.info("ERROR: Card holders > 1")
-            sys.exit(1)  # TODO Do NOT exit
+            message = f"ERROR: Card holders > 1 for {self.first_name} {self.last_name}"
+            self.logger.info(message)
+            capture_exception(Exception(message))
+
+            return None
 
         dsx_command.set_name(DSXName(
             self.first_name,
@@ -123,8 +127,11 @@ class DisableCardCommand(Command):
         card_holders = self.cas.get_card_holders_by_card_num(self.company, self.card_num)
 
         if len(card_holders) > 1:
-            self.logger.info("ERROR: Card holders > 1")
-            sys.exit(1)  # TODO Do NOT exit
+            message = f"ERROR: Card holders > 1 for card {self.card_num}"
+            self.logger.info(message)
+            capture_exception(Exception(message))
+
+            return None
 
         udf_id = card_holders[0].udf_id if len(card_holders) == 1 else uuid.uuid4()
         dsx_command.set_udf_id(udf_id)
