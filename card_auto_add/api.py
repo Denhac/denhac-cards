@@ -87,7 +87,8 @@ class WebhookServerApi(object):
                 "last_name": card_scan.last_name,
                 "card_num": card_scan.card,
                 "scan_time": card_scan.scan_time.isoformat(),
-                "access_allowed": card_scan.access_allowed
+                "access_allowed": card_scan.access_allowed,
+                "device": card_scan.device,
             })
 
             if response.ok:

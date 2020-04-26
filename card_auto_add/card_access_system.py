@@ -36,7 +36,8 @@ class CardScan(object):
                  company,
                  card,
                  scan_time,
-                 access_allowed):
+                 access_allowed,
+                 device):
         self.name_id = name_id
         self.first_name = first_name
         self.last_name = last_name
@@ -44,6 +45,7 @@ class CardScan(object):
         self.card = card
         self.scan_time = scan_time
         self.access_allowed = access_allowed
+        self.device = device
 
 
 class Database(object):
@@ -235,49 +237,6 @@ class CardAccessSystem(object):
 
             return card_holders
 
-    def get_card_scans(self, company_name) -> List[CardScan]:
-        with self._db_lock:
-            sql = \
-                """
-                    SELECT
-                        N.ID AS NameId,
-                        N.FName AS FirstName,
-                        N.LName AS LastName,
-                        CO.Name AS CompanyName,
-                        CA.Code AS CardCode,
-                        LC.LastDate as ScanTime
-                    FROM (
-                             (
-                                 `NAMES` N
-                                     INNER JOIN COMPANY CO
-                                     ON CO.Company = N.Company
-                                 )
-                                INNER JOIN CARDS CA
-                                ON CA.NameID = N.ID
-                             )
-                        LEFT JOIN LocCards LC
-                        ON LC.CardId = CA.ID
-                        WHERE CO.Name = ?
-                        AND CA.Status = true
-                """
-
-            rows = list(self._db.cursor.execute(sql, company_name))
-
-            card_scans = []
-
-            for row in rows:
-                card_scans.append(CardScan(
-                    name_id=row.NameId,
-                    first_name=row.FirstName,
-                    last_name=row.LastName,
-                    company=row.CompanyName,
-                    card=self._strip_card_leading_zeros(row.CardCode),
-                    scan_time=row.ScanTime,
-                    access_allowed=True
-                ))
-
-            return card_scans
-
     def get_scan_events_since(self, timestamp):
         access_allowed_code = 8
         access_denied_unknown_code = 174
@@ -287,7 +246,8 @@ class CardAccessSystem(object):
                 TimeDate,
                 Event,
                 Code AS CardCode,
-                Opr AS NameId
+                Opr AS NameId,
+                Dev AS Device
             FROM EvnLog
             WHERE Event IN ({access_allowed_code}, {access_denied_unknown_code})
             AND IO = ?
@@ -311,7 +271,8 @@ class CardAccessSystem(object):
                 company=name_info.CompanyName,
                 card=self._strip_card_leading_zeros(row.CardCode),
                 scan_time=row.TimeDate,
-                access_allowed=access_allowed
+                access_allowed=access_allowed,
+                device=row.Device
             ))
 
         return card_scans
