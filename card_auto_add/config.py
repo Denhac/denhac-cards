@@ -31,6 +31,14 @@ class Config(object):
         return self._config_default['windsx_path']
 
     @property
+    def username(self):
+        return self._config_default['windsx_username']
+
+    @property
+    def password(self):
+        return self._config_default['windsx_password']
+
+    @property
     def no_interaction_delay(self):
         return int(self._config_default['no_interaction_delay'])
 

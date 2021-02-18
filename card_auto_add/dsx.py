@@ -37,7 +37,7 @@ class DSXCard(object):
         self._code = card_num.lstrip("0")
         self._card_num = card_num
         self._forever = datetime(9999, 12, 31, 0, 0)
-        self._end_date = self._forever
+        self._end_date = None
         self._acls = []
 
     @property
@@ -58,7 +58,7 @@ class DSXCard(object):
             "T Cards",
             f"F Code ^{self._code}^^^",
             f"F CardNum ^{self._card_num}^^^",
-            f"F StopDate ^{self._format_date(self._end_date)}^^^",
+            f"F StopDate ^{self._format_date(self._end_date)}^^^" if self._end_date is not None else None,
             *[f"F AddAcl ^{acl}^^^" for acl in self._acls],
             "W"
         ]
@@ -91,13 +91,13 @@ class DSXCommand(object):
         self._udf_table.append(udf)
 
     def write(self, fh: TextIOBase):
-        lines = [
+        lines = list(filter(None, [
             f"I L{self._loc_grp} U{self._udf_num} ^{self._udf_id}^^^",
             *[line for line in (self._name.get_lines() if self._name is not None else [])],
             *[line for udf_table in self._udf_table for line in udf_table.get_lines()],
             *[line for card_table in self._card_table for line in card_table.get_lines()],
             "P"
-        ]
+        ]))
 
         for line in lines:
             fh.write(line)

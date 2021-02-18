@@ -23,6 +23,8 @@ class DSXApiWatcher(object):
         self.dsx_path = config.windsx_path
         self._no_interaction_delay = config.no_interaction_delay
         self.db_path = os.path.join(self.dsx_path, "DB.exe")
+        self.dsx_username = config.username
+        self.dsx_password = config.password
         self._need_to_run_windsx = False
         self._logger = config.logger
 
@@ -77,8 +79,8 @@ class DSXApiWatcher(object):
         self._logger.info(f"Them windows printed: {len(app.windows())}")
 
         # TODO Handle Login window not being open/visible
-        app.Login.Edit0.set_edit_text("master")
-        app.Login.Edit1.set_edit_text("master")
+        app.Login.Edit0.set_edit_text(self.dsx_username)
+        app.Login.Edit1.set_edit_text(self.dsx_password)
         app.Login.OK.click()
         time.sleep(10)
         # TODO Handle Database window not being open/visible

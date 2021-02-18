@@ -78,7 +78,8 @@ class EnableCardCommand(Command):
         udf_id = card_holders[0].udf_id if len(card_holders) == 1 else uuid.uuid4()
         dsx_command.set_udf_id(udf_id)
         dsx_card = DSXCard(self.card_num)
-        dsx_card.add_acl("MBD Access")
+        dsx_card.add_acl("denhac")
+        dsx_card.enable()
         dsx_command.add_card(dsx_card)
 
         return dsx_command
@@ -136,7 +137,7 @@ class DisableCardCommand(Command):
         udf_id = card_holders[0].udf_id if len(card_holders) == 1 else uuid.uuid4()
         dsx_command.set_udf_id(udf_id)
         dsx_card = DSXCard(self.card_num)
-        dsx_card.add_acl("MBD Access")
+        dsx_card.add_acl("denhac")
         dsx_card.disable()
         dsx_command.add_card(dsx_card)
 
