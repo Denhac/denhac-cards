@@ -1,5 +1,6 @@
 import logging
 import time
+from logging.handlers import RotatingFileHandler
 
 import sentry_sdk
 
@@ -15,12 +16,17 @@ from card_auto_add.loops.processor import Processor
 logger = logging.getLogger("card_access")
 logger.setLevel(logging.INFO)
 
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
 console_handler = logging.StreamHandler()
 console_handler.setLevel(logging.INFO)
+console_handler.setFormatter(formatter)
 logger.addHandler(console_handler)
 
-file_handler = logging.FileHandler("C:/Users/700 Kalamath/.cards/card_access.log")
+max_bytes = 1 * 1024 * 1024
+file_handler = RotatingFileHandler("C:/Users/700 Kalamath/.cards/card_access.log", maxBytes=max_bytes, backupCount=10)
 file_handler.setLevel(logging.INFO)
+file_handler.setFormatter(formatter)
 logger.addHandler(file_handler)
 
 config = Config(logger)
