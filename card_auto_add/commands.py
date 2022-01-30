@@ -107,6 +107,7 @@ class EnableCardCommand(Command):
             if (card_holder.card == self.card_num or
                 card_holder.card == self.card_num.lstrip("0")) \
                     and card_holder.card_active:
+                self.logger.info(f"Found an active valid card")
                 return self.STATUS_SUCCESS
 
         return self.STATUS_NOT_DONE

@@ -44,7 +44,7 @@ class Processor(object):
             # self._logger.info(f"Checking {command.id} file: {file}")
             if not os.path.exists(file):
                 del self._command_to_file[command]
-                self._logger.info(f"File {file} does not exist!")
+                self._logger.info(f"File {file} does not exist! This means it was probably processed")
                 command_status = command.status  # status has logging, only call it once
                 self._server_api.submit_status(command.id, command_status)
                 self._logger.info(f"Status set for {command.id}: {command_status}")
@@ -60,13 +60,13 @@ class Processor(object):
 
         if command.status == Command.STATUS_SUCCESS:
             # This is already done, just tell the server about it
-            self._server_api.submit_status(command.id, command.status)
+            self._server_api.submit_status(command.id, Command.STATUS_SUCCESS)
             self._command_queue.task_done()
             return
 
         if command.status != Command.STATUS_NOT_DONE:
             # This command is in some sort of error state and we do not want to try processing it
-            self._server_api.submit_status(command.id, command.status)
+            self._server_api.submit_status(command.id, Command.STATUS_NOT_DONE)
             self._command_queue.task_done()
             return
 

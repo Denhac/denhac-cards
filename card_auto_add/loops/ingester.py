@@ -68,8 +68,8 @@ class Ingester(object):
         if method == "enable":
             return EnableCardCommand(
                 json_data["id"],
-                json_data["first_name"],
-                json_data["last_name"],
+                json_data["first_name"].replace("'", ""),
+                json_data["last_name"].replace("'", ""),
                 json_data["company"],
                 json_data["card"],
                 cas=self.cas,

@@ -59,7 +59,7 @@ class WebhookServerApi(object):
     def submit_active_card_holders(self, active_card_holders):
         try:
             url = f"{self._api_url}/active_card_holders"
-            self._logger.info(url)
+            self._logger.info("Posting active card holders")
             response = self._session.post(url, json={
                 "card_holders": active_card_holders
             })
