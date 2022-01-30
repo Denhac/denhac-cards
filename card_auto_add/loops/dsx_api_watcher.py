@@ -43,7 +43,7 @@ class DSXApiWatcher(object):
 
                     if len(api_files) > 0:
                         for api in api_files:
-                            self._logger.info(f"WinDSX Api Found: {api}")
+                            self._logger.info(f"WinDSX Api file Found: {api}")
 
                         self._need_to_run_windsx = True
 
@@ -62,6 +62,8 @@ class DSXApiWatcher(object):
                         attempt_count += 1
                         if attempt_count >= max_attempts:
                             raise Exception(f"We've tried to submit this card {max_attempts} times but can't because the computer is in use.")
+                else:
+                    time.sleep(60)
 
             except Exception as e:
                 self._logger.info("Oh no, something happened!")
