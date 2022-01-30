@@ -1,6 +1,8 @@
 import abc
 import logging
 import uuid
+from itertools import groupby
+from typing import Optional
 
 from sentry_sdk import capture_exception
 
@@ -54,7 +56,7 @@ class EnableCardCommand(Command):
     def id(self):
         return self.command_id
 
-    def get_dsx_command(self) -> DSXCommand:
+    def get_dsx_command(self) -> Optional[DSXCommand]:
         dsx_command = self.cas.new_command()
 
         card_holders = self.cas.get_card_holders_by_name(
@@ -63,19 +65,24 @@ class EnableCardCommand(Command):
             self.company
         )
 
-        if len(card_holders) > 1:
-            message = f"ERROR: Card holders > 1 for {self.first_name} {self.last_name}"
+        holders = dict([(k, list(g)) for k, g in groupby(card_holders, lambda ch: ch.udf_id)])
+
+        if len(holders) > 1:
+            message = f"ERROR: Card holders > 1 for id {self.command_id}"
             self.logger.info(message)
             capture_exception(Exception(message))
 
             return None
+        elif len(holders) == 1:
+            udf_id = list(holders.keys())[0]
+        else:
+            udf_id = uuid.uuid4()
 
         dsx_command.set_name(DSXName(
             self.first_name,
             self.last_name,
             self.company
         ))
-        udf_id = card_holders[0].udf_id if len(card_holders) == 1 else uuid.uuid4()
         dsx_command.set_udf_id(udf_id)
         dsx_card = DSXCard(self.card_num)
         dsx_card.add_acl("denhac")
