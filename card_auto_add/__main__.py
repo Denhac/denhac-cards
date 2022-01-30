@@ -44,6 +44,7 @@ splunk = SplunkHandler(
     index=config.splunk_index,
     source=config.splunk_source,
     sourcetype=config.splunk_sourcetype,
+    verify=False
 )
 splunk.setLevel(logging.INFO)
 splunk.setFormatter(formatter)
