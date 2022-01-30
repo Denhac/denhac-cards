@@ -39,9 +39,9 @@ class CardScanWatcher(object):
                 name = self._devices[scan.device] if scan.device in self._devices else "Name Unknown"
 
                 if scan.access_allowed:
-                    self._logger(f"ACCESS GRANTED Door={scan.device} Name=`{name}`")
+                    self._logger.info(f"ACCESS GRANTED Door={scan.device} Name=`{name}`")
                 else:
-                    self._logger(f"ACCESS DENIED Door={scan.device} Name=`{name}`")
+                    self._logger.info(f"ACCESS DENIED Door={scan.device} Name=`{name}`")
 
                 try:
                     self._server_api.submit_card_scan_event(scan)
