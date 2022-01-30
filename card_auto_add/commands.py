@@ -96,7 +96,7 @@ class EnableCardCommand(Command):
         self.logger.info(f"Status check card holders: {len(card_holders)}")
         card_holder: CardHolder
         for card_holder in card_holders:
-            self.logger.info(f"Testing {card_holder.last_name}, {card_holder.first_name} with card {card_holder.card}")
+            self.logger.info(f"Testing card {card_holder.card}")
             if (card_holder.card == self.card_num or
                 card_holder.card == self.card_num.lstrip("0")) \
                     and card_holder.card_active:

@@ -27,8 +27,7 @@ class WebhookServerApi(object):
                 return json_response["data"]
 
             else:
-                self._logger.info("read response was not ok!")
-                self._logger.info(response.status_code)
+                self._logger.info(f"read response from API server was {response.status_code} which is not ok!")
                 with open("read_error.html", "w", encoding="utf-8") as fh:
                     fh.write(str(response.content))
                 raise Exception(f"Command json returned {response.status_code}")
@@ -40,7 +39,6 @@ class WebhookServerApi(object):
     def submit_status(self, command_id, status):
         try:
             url = f"{self._api_url}/card_updates/{command_id}/status"
-            self._logger.info(url)
             response = self._session.post(url, json={
                 "status": status
             })
@@ -49,8 +47,7 @@ class WebhookServerApi(object):
                 return
 
             else:
-                self._logger.info("status response was not ok!")
-                self._logger.info(response.status_code)
+                self._logger.info(f"status response from API server was {response.status_code} which is not ok!")
                 with open("status_error.html", "w", encoding="utf-8") as fh:
                     fh.write(str(response.content))
                 raise Exception(f"Submit status returned {response.status_code}")
@@ -70,8 +67,7 @@ class WebhookServerApi(object):
             if response.ok:
                 return
             else:
-                self._logger.info("status response was not ok!")
-                self._logger.info(response.status_code)
+                self._logger.info(f"status response from API server was {response.status_code} which is not ok!")
                 raise Exception(f"Submit status returned {response.status_code}")
         except Exception as e:
             self._logger.info(e)
@@ -94,8 +90,7 @@ class WebhookServerApi(object):
             if response.ok:
                 return
             else:
-                self._logger.info("status response was not ok!")
-                self._logger.info(response.status_code)
+                self._logger.info(f"card scanned response from API server was {response.status_code} which is not ok!")
                 raise Exception(f"Submit status returned {response.status_code}")
         except Exception as e:
             self._logger.info(e)

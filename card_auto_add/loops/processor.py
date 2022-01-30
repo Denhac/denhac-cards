@@ -45,8 +45,9 @@ class Processor(object):
             if not os.path.exists(file):
                 del self._command_to_file[command]
                 self._logger.info(f"File {file} does not exist!")
-                self._server_api.submit_status(command.id, command.status)
-                self._logger.info(f"Status set for {command.id}: {command.status}")
+                command_status = command.status  # status has logging, only call it once
+                self._server_api.submit_status(command.id, command_status)
+                self._logger.info(f"Status set for {command.id}: {command_status}")
 
     def _handle_new_commands(self):
         try:

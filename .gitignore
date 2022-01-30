@@ -147,3 +147,4 @@ modules.xml
 venv
 .idea/webServers.xml
 .DS_Store
+__pycache__

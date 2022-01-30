@@ -1,5 +1,6 @@
 appdirs
 configparser
+psutil
 pyinstaller
 pyodbc
 pywinauto
@@ -7,4 +8,5 @@ pywin32
 python-dateutil
 requests
 sentry-sdk==0.13.2
+splunk_handler
 uuid

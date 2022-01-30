@@ -19,7 +19,7 @@ class Ingester(object):
                  server_api: WebhookServerApi,
                  command_queue: Queue):
         self.cas = cas
-        self.ingest_dir = config.ingest_dir
+        self.ingest_dir = config.ingest_path
 
         self.command_queue = command_queue
         self.requests_from_api_in_queue = set()
