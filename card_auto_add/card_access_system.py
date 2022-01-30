@@ -78,6 +78,24 @@ class CardAccessSystem(object):
     def new_command(self) -> DSXCommand:
         return DSXCommand(self._loc_grp, self._udf_num)
 
+    def get_devices(self):
+        with self._db_lock:
+            sql = \
+                """
+                    SELECT
+                        D.Device as Device,
+                        D.Name as Name
+                    FROM `DEV` D
+                """
+
+            rows = list(self._db.cursor.execute(sql))
+
+        result = {}
+        for row in rows:
+            result[row.Device] = row.Name
+
+        return result
+
     def get_card_holders_by_name(self, first_name, last_name, company_name) -> List[CardHolder]:
         with self._db_lock:
             names_sql = \

@@ -20,6 +20,7 @@ class CardScanWatcher(object):
         self._cas = cas
         self._known_card_scans = {}
         self._last_scan_time = datetime.now()
+        self._devices = {}
 
     def start(self):
         thread = Thread(target=self._run, daemon=True)
@@ -32,12 +33,17 @@ class CardScanWatcher(object):
             for scan in card_scans:
                 self._last_scan_time = max(self._last_scan_time, scan.scan_time)
 
-                try:
-                    if scan.access_allowed:
-                        self._logger("Someone badged in successfully!")
-                    else:
-                        self._logger("Someone tried to badge in but was not allowed.")
+                if scan.device not in self._devices:
+                    self._devices = self._cas.get_devices()
 
+                name = self._devices[scan.device] if scan.device in self._devices else "Name Unknown"
+
+                if scan.access_allowed:
+                    self._logger(f"Someone badged in successfully! Door={scan.device} Name=`{name}`")
+                else:
+                    self._logger(f"Someone tried to badge in but was not allowed. Door={scan.device} Name=`{name}`")
+
+                try:
                     self._server_api.submit_card_scan_event(scan)
                 except Exception as e:
                     capture_exception(e)
