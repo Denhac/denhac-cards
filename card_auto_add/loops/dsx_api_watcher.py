@@ -33,10 +33,7 @@ class DSXApiWatcher(object):
         thread.start()
 
     def _run(self):
-        attempt_count = 0
-        max_attempts = 100
-
-        while attempt_count < max_attempts:
+        while True:
             try:
                 if not self._need_to_run_windsx:
                     api_files = glob(self.dsx_path + os.path.sep + "^IMP[0-9][0-9].txt")
@@ -51,7 +48,6 @@ class DSXApiWatcher(object):
                 if self._need_to_run_windsx:
                     if no_interaction_time > self._no_interaction_delay:
                         self._login_and_close_windsx()
-                        return
                     else:
                         sleep_time = self._no_interaction_delay - no_interaction_time + 1
 
@@ -59,9 +55,6 @@ class DSXApiWatcher(object):
                         self._logger.info(f"Will sleep for {sleep_time} seconds and check again.")
 
                         time.sleep(sleep_time)
-                        attempt_count += 1
-                        if attempt_count >= max_attempts:
-                            raise Exception(f"We've tried to submit this card {max_attempts} times but can't because the computer is in use.")
                 else:
                     time.sleep(60)
 
