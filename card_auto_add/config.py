@@ -37,6 +37,7 @@ class Config(object):
     windsx_path = ConfigProperty('WINDSX', 'root_path')
     windsx_username = ConfigProperty('WINDSX', 'username')
     windsx_password = ConfigProperty('WINDSX', 'password')
+    windsx_acl = ConfigProperty('WINDSX', 'acl')
 
     ingest_path = ConfigProperty('INGEST', 'root_path')
     no_interaction_delay = ConfigProperty('INGEST', 'no_interaction_delay', transform=lambda x: int(x))
