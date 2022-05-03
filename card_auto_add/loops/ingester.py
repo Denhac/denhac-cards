@@ -1,30 +1,27 @@
-import json
-import os
+import threading
 import time
-from glob import glob
-from queue import Queue
 from threading import Thread
 
 from sentry_sdk import capture_exception
 
 from card_auto_add.api import WebhookServerApi
-from card_auto_add.card_access_system import CardAccessSystem
-from card_auto_add.commands import EnableCardCommand, DisableCardCommand
 from card_auto_add.config import Config
+from card_auto_add.windsx.activations import WinDSXCardActivations, CardInfo
 
 
 class Ingester(object):
+    STATUS_SUCCESS = "success"
+    STATUS_NOT_DONE = "not_done"
+
     def __init__(self, config: Config,
-                 cas: CardAccessSystem,
-                 server_api: WebhookServerApi,
-                 command_queue: Queue):
-        self.cas = cas
-        self.ingest_dir = config.ingest_path
+                 win_dsx_card_activations: WinDSXCardActivations,
+                 server_api: WebhookServerApi):
+        self._win_dsx_card_activations = win_dsx_card_activations
 
-        self.command_queue = command_queue
-        self.requests_from_api_in_queue = set()
+        self._request_lock = threading.Lock()
+        self._known_requests = set()
 
-        self.server_api = server_api
+        self._server_api = server_api
 
         self._logger = config.logger
 
@@ -34,52 +31,55 @@ class Ingester(object):
 
     def _run(self):
         while True:
+            updates = []
             try:
-                api_files = glob(self.ingest_dir + os.path.sep + "*.json")
-
-                if len(api_files) > 0:
-                    for api_file in api_files:
-                        self._logger.info(f"Ingest Found: {api_file}")
-                        with open(api_file, 'r') as fh:
-                            json_data = json.load(fh)
-
-                        command = self._get_dsx_command(json_data)
-                        self.command_queue.put(command)
-
-                        os.unlink(api_file)
-
-                updates = self.server_api.get_command_json()
-                for update in updates or []:
-                    update_id = update["id"]
-
-                    if update_id not in self.requests_from_api_in_queue:
-                        self._logger.info(f"processing update {update_id}")
-                        command = self._get_dsx_command(update)
-                        self.command_queue.put(command)
-                        self.requests_from_api_in_queue.add(update_id)
+                updates = self._server_api.get_command_json()
             except Exception as e:
+                self._logger.exception("Failed getting updates", exc_info=True)
                 capture_exception(e)
+
+            for update in updates or []:
+                self._maybe_handle_request(update)
 
             time.sleep(60)
 
-    # TODO Validation
-    def _get_dsx_command(self, json_data):
-        method = json_data["method"]
-        if method == "enable":
-            return EnableCardCommand(
-                json_data["id"],
-                json_data["first_name"].replace("'", ""),
-                json_data["last_name"].replace("'", ""),
-                json_data["company"],
-                json_data["card"],
-                cas=self.cas,
-                logger=self._logger
-            )
-        elif method == "disable":
-            return DisableCardCommand(
-                json_data["id"],
-                json_data["card"],
-                json_data["company"],
-                cas=self.cas,
-                logger=self._logger
-            )
+    def _maybe_handle_request(self, update):
+        with self._request_lock:
+            update_id = update["id"]
+
+            if update_id not in self._known_requests:
+                return
+
+            self._known_requests.add(update_id)
+
+            try:
+                self._logger.info(f"Processing update {update_id}")
+
+                method = update["method"]
+                card_info = CardInfo(
+                    first_name=update["first_name"].replace("'", ""),
+                    last_name=update["last_name"].replace("'", ""),
+                    company=update["company"],
+                    woo_id=update["woo_id"],
+                    card=update["card"]
+                )
+
+                if method == "enable":
+                    self._win_dsx_card_activations.activate(card_info)
+                elif method == "disable":
+                    self._win_dsx_card_activations.deactivate(card_info)
+                else:
+                    raise ValueError(f"Method {method} for update {update_id} is unknown")
+
+                self._submit_status(update_id, self.STATUS_SUCCESS)
+
+            except Exception as e:
+                self._logger.exception(f"Could not process update {update_id}", exc_info=True)
+                capture_exception(e)
+                self._submit_status(update_id, self.STATUS_NOT_DONE)
+
+    def _submit_status(self, update_id, status):
+        try:
+            self._server_api.submit_status(update_id, status)
+        except Exception as e:
+            capture_exception(e)

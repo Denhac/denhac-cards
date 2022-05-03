@@ -6,14 +6,15 @@ import sentry_sdk
 from splunk_handler import SplunkHandler
 
 from card_auto_add.api import WebhookServerApi
-from card_auto_add.card_access_system import CardAccessSystem
 from card_auto_add.config import Config
 from card_auto_add.loops.active_cards_watcher import ActiveCardsWatcher
 from card_auto_add.loops.card_scan_watcher import CardScanWatcher
 from card_auto_add.loops.comm_server_watcher import CommServerWatcher
-from card_auto_add.loops.dsx_api_watcher import DSXApiWatcher
 from card_auto_add.loops.ingester import Ingester
-from card_auto_add.loops.processor import Processor
+from card_auto_add.windsx.activations import WinDSXCardActivations
+from card_auto_add.windsx.card_holders import WinDSXActiveCardHolders
+from card_auto_add.windsx.card_scan import WinDSXCardScan
+from card_auto_add.windsx.database import Database
 
 logger = logging.getLogger("card_access")
 logger.setLevel(logging.INFO)
@@ -50,25 +51,24 @@ splunk.setLevel(logging.INFO)
 splunk.setFormatter(formatter)
 logger.addHandler(splunk)
 
-cas = CardAccessSystem(config)
 server_api = WebhookServerApi(config)
 
 comm_server_watcher = CommServerWatcher(config)
 comm_server_watcher.start()
 
-processor = Processor(config, server_api)
-processor.start()
+acs_db = Database(config.acs_data_db_path)
+log_db = Database(config.log_db_path)
 
-ingester = Ingester(config, cas, server_api, processor.command_queue)
+card_activations = WinDSXCardActivations(config, acs_db)
+ingester = Ingester(config, card_activations, server_api)
 ingester.start()
 
-api_watcher = DSXApiWatcher(config)
-api_watcher.start()
-
-active_cards_watcher = ActiveCardsWatcher(config, server_api, cas)
+card_holders = WinDSXActiveCardHolders(acs_db)
+active_cards_watcher = ActiveCardsWatcher(config, server_api, card_holders)
 active_cards_watcher.start()
 
-card_scan_watcher = CardScanWatcher(config, server_api, cas)
+card_scan = WinDSXCardScan(acs_db, log_db)
+card_scan_watcher = CardScanWatcher(config, server_api, card_scan)
 card_scan_watcher.start()
 
 while True:

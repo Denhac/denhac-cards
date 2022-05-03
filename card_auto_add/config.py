@@ -1,4 +1,5 @@
 import os
+from logging import Logger
 from typing import Optional, Callable, TypeVar, Generic
 
 import appdirs
@@ -21,8 +22,8 @@ class ConfigProperty(Generic[T]):
 
 
 class Config(object):
-    def __init__(self, logger):
-        self.logger = logger
+    def __init__(self, logger: Logger):
+        self.logger: Logger = logger
         # TODO Handle File not existing
         config_path = os.path.join(appdirs.user_config_dir(), ".card_auto_add_config.ini")
         parser = configparser.ConfigParser()
