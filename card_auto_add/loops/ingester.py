@@ -34,6 +34,7 @@ class Ingester(object):
             updates = []
             try:
                 updates = self._server_api.get_command_json()
+                self._logger.info(f"Got {len(updates)} updates to process")
             except Exception as e:
                 self._logger.exception("Failed getting updates", exc_info=True)
                 capture_exception(e)
@@ -47,7 +48,7 @@ class Ingester(object):
         with self._request_lock:
             update_id = update["id"]
 
-            if update_id not in self._known_requests:
+            if update_id in self._known_requests:
                 return
 
             self._known_requests.add(update_id)

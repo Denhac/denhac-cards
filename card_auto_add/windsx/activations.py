@@ -1,4 +1,3 @@
-import logging
 import time
 import uuid
 from collections import defaultdict
@@ -33,8 +32,7 @@ class WinDSXCardActivations(object):
                  ):
         self._acs_db: Database = acs_db
         self._default_acl = config.windsx_acl
-        self._log = logging.getLogger("ca_scratch")
-        self._log.setLevel(logging.INFO)
+        self._log = config.logger
 
         self._loc_grp = 3  # TODO Look this up based on the name
         self._udf_name = "ID"  # TODO Look this up in config
@@ -138,7 +136,7 @@ class WinDSXCardActivations(object):
             if existing_value != customer_uuid:
                 self._acs_db.cursor.execute(
                     "UPDATE UDF SET UdfText = ? WHERE NameId = ? AND UdfNum = ?",
-                    (customer_uuid,)
+                    (customer_uuid, name_id, udf_num)
                 )
         else:
             self._acs_db.cursor.execute(

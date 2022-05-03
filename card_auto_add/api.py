@@ -1,8 +1,8 @@
 import requests
 from sentry_sdk import capture_exception
 
-from card_auto_add.card_access_system import CardScan
 from card_auto_add.config import Config
+from card_auto_add.windsx.card_scan import CardScan
 
 
 class WebhookServerApi(object):

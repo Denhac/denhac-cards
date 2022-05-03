@@ -69,7 +69,7 @@ class WinDSXCardScan(object):
                 device=row.Device
             ))
 
-            return card_scans
+        return card_scans
 
     def get_devices(self):
         sql = \

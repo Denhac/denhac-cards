@@ -49,7 +49,7 @@ splunk = SplunkHandler(
 )
 splunk.setLevel(logging.INFO)
 splunk.setFormatter(formatter)
-logger.addHandler(splunk)
+# logger.addHandler(splunk)
 
 server_api = WebhookServerApi(config)
 
