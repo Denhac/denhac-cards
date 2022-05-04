@@ -126,6 +126,8 @@ class WinDSXCardActivations(object):
 
         self._create_or_update_udf_text(udf_num, name_id, customer_uuid)
 
+        return name_id
+
     def _create_or_update_udf_text(self, udf_num, name_id, customer_uuid):
         existing_value = self._acs_db.cursor.execute(
             "SELECT UdfText FROM UDF WHERE NameID = ? AND UdfNum = ?",

@@ -34,7 +34,6 @@ class Ingester(object):
             updates = []
             try:
                 updates = self._server_api.get_command_json()
-                self._logger.info(f"Got {len(updates)} updates to process")
             except Exception as e:
                 self._logger.exception("Failed getting updates", exc_info=True)
                 capture_exception(e)
