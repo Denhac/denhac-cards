@@ -10,6 +10,7 @@ from card_auto_add.config import Config
 from card_auto_add.loops.active_cards_watcher import ActiveCardsWatcher
 from card_auto_add.loops.card_scan_watcher import CardScanWatcher
 from card_auto_add.loops.comm_server_watcher import CommServerWatcher
+from card_auto_add.loops.door_override_watcher import DoorOverrideWatcher
 from card_auto_add.loops.ingester import Ingester
 from card_auto_add.windsx.activations import WinDSXCardActivations
 from card_auto_add.windsx.card_holders import WinDSXActiveCardHolders
@@ -70,6 +71,9 @@ active_cards_watcher.start()
 card_scan = WinDSXCardScan(acs_db, log_db)
 card_scan_watcher = CardScanWatcher(config, server_api, card_scan)
 card_scan_watcher.start()
+
+door_overrides = DoorOverrideWatcher(config)
+door_overrides.start()
 
 while True:
     time.sleep(60)
