@@ -59,7 +59,7 @@ class WinDSXActiveCardHolders(object):
                     first_name=row.FirstName,
                     last_name=row.LastName,
                     company=row.CompanyName,
-                    card=str(row.CardCode).lstrip('0').rstrip('.'),
+                    card=str(row.CardCode).strip('0').rstrip('.'),
                     card_active=row.CardStatus
                 ))
 

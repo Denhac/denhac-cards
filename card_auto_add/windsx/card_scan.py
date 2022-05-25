@@ -63,7 +63,7 @@ class WinDSXCardScan(object):
                 first_name=name_info.FirstName,
                 last_name=name_info.LastName,
                 company=name_info.CompanyName,
-                card=str(row.CardCode).lstrip('0').rstrip('.'),
+                card=str(row.CardCode).strip('0').rstrip('.'),
                 scan_time=row.TimeDate,
                 access_allowed=access_allowed,
                 device=row.Device
