@@ -6,6 +6,6 @@ pyodbc
 pysherplus
 python-dateutil
 requests
-sentry-sdk==0.13.2
+sentry-sdk==1.14.0
 splunk_handler
 uuid
