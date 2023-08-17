@@ -38,18 +38,12 @@ class DoorOverrideWatcher(object):
 
     def _run(self):
         self._pusher.connect()
-        # self._logger.info(f"ID: {self._pusher._connection.socket_id}")
-        # token = self.auth.auth_token(self._pusher._connection.socket_id, "private-doors")
-        # self._logger.info(f"Token: {token}")
 
         while True:
             time.sleep(1)
             with self._update_lock:
-                # self._logger.info(f"Connected: {self._pusher.connected}")
-                # self._logger.info(self._pusher["private-doors"].subscribed)
                 for device_id, door in list(self._door_states.items()):
                     door.duration = door.duration - 1
-                    # self._logger.info(f"{device_id}, {door.duration}")
 
                     if door.duration <= 0:
                         DoorOverride.time_zone(device_id)
@@ -74,7 +68,7 @@ class DoorOverrideWatcher(object):
                         self._logger.info(f"Closing device {device_id}")
                         DoorOverride.time_zone(device_id)
 
-                    if not should_open:  # If we're closing this door, duration no longer matters
+                        # If we're closing this door, duration no longer matters, remove it from our list
                         if device_id in self._door_states:
                             del self._door_states[device_id]
                         self._logger.info("Not open, continued")

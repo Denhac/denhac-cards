@@ -1,9 +1,11 @@
+import atexit
 import logging
+import signal
+import sys
 import time
 from logging.handlers import RotatingFileHandler
 
 import sentry_sdk
-from splunk_handler import SplunkHandler
 
 from card_auto_add.api import WebhookServerApi
 from card_auto_add.config import Config
@@ -38,20 +40,6 @@ logger.addHandler(file_handler)
 config = Config(logger)
 sentry_sdk.init(config.sentry_dsn)
 
-# Splunk logging handler
-splunk = SplunkHandler(
-    host=config.splunk_host,
-    port=8088,
-    token=config.splunk_token,
-    index=config.splunk_index,
-    source=config.splunk_source,
-    sourcetype=config.splunk_sourcetype,
-    verify=False
-)
-splunk.setLevel(logging.INFO)
-splunk.setFormatter(formatter)
-# logger.addHandler(splunk)
-
 server_api = WebhookServerApi(config)
 
 comm_server_watcher = CommServerWatcher(config)
@@ -60,7 +48,7 @@ comm_server_watcher.start()
 acs_db = Database(config.acs_data_db_path)
 log_db = Database(config.log_db_path)
 
-card_activations = WinDSXCardActivations(config, acs_db)
+card_activations = WinDSXCardActivations(config, acs_db, comm_server_watcher)
 ingester = Ingester(config, card_activations, server_api)
 ingester.start()
 
@@ -75,5 +63,18 @@ card_scan_watcher.start()
 door_overrides = DoorOverrideWatcher(config)
 door_overrides.start()
 
+config.slack_logger.info("denhac card access automation started")
+
+
+# @atexit.register
+# def goodbye():  # TODO Shut down all the threads
+#     config.slack_logger.info("denhac card access automation is shutting down")
+
+
+# When the OS tries to terminate us, make sure we exit cleanly. This ensures goodbye is called as well.
+signal.signal(signal.SIGTERM, lambda num, frame: sys.exit(0))
+
+# Main thread runs forever. Theoretically could be avoided if our other threads were non-daemon and were cleaned up
+# in goodbye correctly.
 while True:
     time.sleep(60)

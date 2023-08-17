@@ -5,7 +5,11 @@ from datetime import datetime
 from itertools import groupby
 from typing import Union, Optional
 
+import requests
+
 from card_auto_add.config import Config
+from card_auto_add.data_signing import DataSigning
+from card_auto_add.loops.comm_server_watcher import CommServerWatcher
 from card_auto_add.windsx.database import Database
 
 
@@ -29,16 +33,23 @@ class WinDSXCardActivations(object):
     def __init__(self,
                  config: Config,
                  acs_db: Database,
+                 comm_server_watcher: CommServerWatcher,
                  ):
         self._acs_db: Database = acs_db
+        self._config: Config = config
         self._default_acl = config.windsx_acl
         self._log = config.logger
+        self._slack_log = config.slack_logger
+        self._data_signing = DataSigning(config.dsxpi_signing_secret)
+        self._comm_server_watcher = comm_server_watcher
 
         self._loc_grp = 3  # TODO Look this up based on the name
         self._udf_name = "ID"  # TODO Look this up in config
 
     def activate(self, card_info: CardInfo):
         self._log.info(f"Activating card {card_info.card}")
+        self._slack_log.info(f"Activating card {card_info.card} for {card_info.first_name} {card_info.last_name}")
+
         acl_name_id = self._get_acl_by_name(self._default_acl)
 
         name_id = self._find_or_create_name(card_info)
@@ -66,8 +77,12 @@ class WinDSXCardActivations(object):
 
         self._encourage_system_update()
 
+        self._slack_log.info(f"Card {card_info.card} activated for {card_info.first_name} {card_info.last_name}")
+
     def deactivate(self, card_info: CardInfo):
         self._log.info(f"Deactivating card {card_info.card}")
+        self._slack_log.info(f"Deactivating card {card_info.card} for {card_info.first_name} {card_info.last_name}")
+
         card_id, _ = self._get_card_combo_id(card_info.card)
 
         if card_id is None:
@@ -77,6 +92,8 @@ class WinDSXCardActivations(object):
         self._set_card_inactive(card_id)
 
         self._encourage_system_update()
+
+        self._slack_log.info(f"Card {card_info.card} deactivated for {card_info.first_name} {card_info.last_name}")
 
     def _find_or_create_name(self, card_info: CardInfo):
         # First, let's try to find it via uuid5
@@ -408,15 +425,37 @@ class WinDSXCardActivations(object):
         self._acs_db.connection.commit()
 
         self._log.info("Comm Server update requested")
-        for i in range(30):
-            downloading = self._acs_db.cursor.execute("SELECT FullDlFlag FROM LOC").fetchval()
+        for j in range(5):  # We'll endure up to 5 attempts, 4 resets
+            for i in range(30):  # We'll endure 30 * 10 == 300 seconds to wait for the update before resetting
+                downloading = self._acs_db.cursor.execute("SELECT FullDlFlag FROM LOC").fetchval()
 
-            if not downloading:
-                self._log.info("Looks like everything updated!")
-                return
+                if not downloading:
+                    self._log.info("Looks like everything updated!")
+                    return
 
-            self._log.info("Update doesn't look like it's gone through yet, waiting 10 seconds")
-            time.sleep(10)
+                self._log.info("Update doesn't look like it's gone through yet, waiting 10 seconds")
+                time.sleep(10)
 
-        self._log.info("Update timed out")
+            self._log.info("Update timed out")
+            self._slack_log.info("Card update timed out, will attempt to reset and try again.")
+            self._reset_card_access_hardware()
+
+            if j >= 1:
+                self._comm_server_watcher.restart_comm_server()
+
+        self._log.info("Card update failed after too many attempts")
+        self._slack_log.info("Card update failed after too many attempts")
+
         raise Exception("Comm Server update timed out")
+
+    def _reset_card_access_hardware(self):
+        signed_payload = self._data_signing.encode(10)
+        url = f"{self._config.dsxpi_host}/reset/{signed_payload}"
+        response = requests.post(url)
+
+        self._slack_log.info(response.content.decode('ascii'))
+
+        if not response.ok:
+            self._slack_log.info("DSXPI hardware failed to restart")
+        else:
+            self._slack_log.info("DSXPI hardware looks like it restarted!")

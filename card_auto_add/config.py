@@ -1,9 +1,12 @@
+import logging
 import os
 from logging import Logger
 from typing import Optional, Callable, TypeVar, Generic
 
 import appdirs
 import configparser
+
+from card_auto_add.slack_handler import SlackHandler
 
 T = TypeVar('T')
 
@@ -30,6 +33,17 @@ class Config(object):
         parser.read(config_path)
         self._config = parser
 
+        # Slack specific logging
+        slack_formatter = logging.Formatter('%(levelname)s - %(message)s')
+
+        self.slack_logger = logging.getLogger("slack_card_access")
+        self.slack_logger.setLevel(logging.INFO)
+
+        slack_handler = SlackHandler(self.slack_log_url)
+        slack_handler.setLevel(logging.INFO)
+        slack_handler.setFormatter(slack_formatter)
+        self.slack_logger.addHandler(slack_handler)
+
     def __getitem__(self, item):
         return self._config[item]
 
@@ -47,9 +61,7 @@ class Config(object):
 
     sentry_dsn = ConfigProperty('SENTRY', 'dsn')
 
-    splunk_host = ConfigProperty('SPLUNK', 'host')
-    splunk_index = ConfigProperty('SPLUNK', 'index')
-    splunk_token = ConfigProperty('SPLUNK', 'token')
-    splunk_source = ConfigProperty('SPLUNK', 'source')
-    splunk_sourcetype = ConfigProperty('SPLUNK', 'sourcetype')
+    slack_log_url = ConfigProperty('SLACK', 'webhook_url')
 
+    dsxpi_host = ConfigProperty('DSXPI', 'host')
+    dsxpi_signing_secret = ConfigProperty('DSXPI', 'signing_secret')
